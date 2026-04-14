@@ -9,6 +9,9 @@ import { colors, styles } from '@/lib/design'
 import { PLANS, formatPrice, type PlanType } from '@/lib/plans'
 import Logo from '@/components/Logo'
 
+// 모바일 여부 기준 너비
+const MOBILE_BP = 768
+
 // 캠페인 유형
 type CampaignType = 'full' | 'sample'
 
@@ -56,6 +59,16 @@ export default function CampaignNewPage() {
   // 폼 제출 / 결제 상태
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+
+  // 모바일 여부
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < MOBILE_BP)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   // 버튼 호버 상태
   const [backHover, setBackHover] = useState(false)
@@ -423,7 +436,7 @@ export default function CampaignNewPage() {
   // ════════════════════════════════════════════════
   return (
     <div style={{ minHeight: '100vh', background: colors.background }}>
-      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '32px 20px 60px' }}>
+      <div style={{ maxWidth: '640px', margin: '0 auto', padding: isMobile ? '24px 16px 60px' : '32px 20px 60px' }}>
 
         {/* 헤더 */}
         <div style={{
@@ -456,7 +469,7 @@ export default function CampaignNewPage() {
 
         {/* 페이지 제목 */}
         <div style={{ marginBottom: '24px' }}>
-          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: colors.titleText }}>
+          <h1 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', fontWeight: 700, color: colors.titleText }}>
             새 캠페인 만들기
           </h1>
           <p style={{ margin: '8px 0 0', fontSize: '15px', color: colors.subText }}>
@@ -464,9 +477,12 @@ export default function CampaignNewPage() {
           </p>
         </div>
 
-        {/* 플랜 가격 안내 */}
+        {/* 플랜 가격 안내 — 모바일에서 세로 배치 */}
         <div style={{
-          display: 'flex', gap: '12px', marginBottom: '24px',
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: '12px',
+          marginBottom: '24px',
         }}>
           {(['full', 'sample'] as PlanType[]).map((key) => {
             const p = PLANS[key]
@@ -619,7 +635,8 @@ export default function CampaignNewPage() {
               {/* 캠페인 유형 */}
               <div>
                 <label style={labelStyle}>캠페인 유형</label>
-                <div style={{ display: 'flex', gap: '12px' }}>
+                {/* 모바일에서 세로 배치 */}
+                <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px' }}>
                   {(['full', 'sample'] as CampaignType[]).map((type) => (
                     <button
                       key={type}

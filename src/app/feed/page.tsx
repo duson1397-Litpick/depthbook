@@ -107,10 +107,51 @@ export default function FeedPage() {
   // 댓글 인풋 포커스 상태 (review.id 기준)
   const [commentFocusedId, setCommentFocusedId] = useState<string | null>(null)
 
+  // 모바일 여부 (768px 미만)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  // 검색어 입력값
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // 300ms 디바운스 적용된 검색어
+  const [searchDebounced, setSearchDebounced] = useState('')
+
+  // ⋯ 드롭다운이 열린 리뷰 id
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+
+  // 신고 모달 상태
+  const [reportReviewId, setReportReviewId] = useState<string | null>(null)
+  const [reportReason, setReportReason] = useState('')
+  const [reportDetail, setReportDetail] = useState('')
+  const [reportSubmitting, setReportSubmitting] = useState(false)
+  const [reportDone, setReportDone] = useState(false)
+
   // 알림 상태
   const [notifications, setNotifications] = useState<any[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [showNotifDropdown, setShowNotifDropdown] = useState(false)
+
+  // ── 검색어 디바운스 처리 (300ms) ────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(searchQuery), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  // 디바운스 검색어 변경 시 리뷰 다시 불러오기
+  useEffect(() => {
+    // 초기 로드 완료 후에만 실행 (loading 중에는 init()에서 처리)
+    if (loading) return
+    setPage(0)
+    setReviews([])
+    loadReviews(0, currentUserId, searchDebounced)
+  }, [searchDebounced])
 
   // ── 초기 데이터 로드 ────────────────────────────
   useEffect(() => {
@@ -166,7 +207,7 @@ export default function FeedPage() {
         }
       }
 
-      await loadReviews(0, userId)
+      await loadReviews(0, userId, '')
       setLoading(false)
     }
 
@@ -174,11 +215,12 @@ export default function FeedPage() {
   }, [])
 
   // ── 리뷰 목록 조회 ──────────────────────────────
-  const loadReviews = async (pageNum: number, userId: string | null) => {
+  const loadReviews = async (pageNum: number, userId: string | null, query = '') => {
     const from = pageNum * 20
     const to = from + 19
 
-    const { data } = await supabase
+    // 기본 쿼리 구성
+    let q = supabase
       .from('public_reviews')
       .select(`
         id,
@@ -198,6 +240,13 @@ export default function FeedPage() {
           total_want_to_read
         )
       `)
+
+    // 검색어가 있으면 제목 또는 본문에서 검색
+    if (query.trim()) {
+      q = q.or(`title.ilike.%${query.trim()}%,content.ilike.%${query.trim()}%`)
+    }
+
+    const { data } = await q
       .order('created_at', { ascending: false })
       .range(from, to)
 
@@ -260,7 +309,7 @@ export default function FeedPage() {
     setLoadingMore(true)
     const next = page + 1
     setPage(next)
-    await loadReviews(next, currentUserId)
+    await loadReviews(next, currentUserId, searchDebounced)
     setLoadingMore(false)
   }
 
@@ -484,6 +533,51 @@ export default function FeedPage() {
     }
   }
 
+  // ── 신고 모달 열기 ──────────────────────────────
+  const openReportModal = (reviewId: string) => {
+    setReportReviewId(reviewId)
+    setReportReason('')
+    setReportDetail('')
+    setReportDone(false)
+    setReportSubmitting(false)
+    setOpenMenuId(null)
+  }
+
+  // ── 신고 제출 ───────────────────────────────────
+  const handleReport = async () => {
+    if (!reportReviewId || !reportReason || reportSubmitting) return
+    setReportSubmitting(true)
+
+    const auth = await getAuthHeader()
+    if (!auth) {
+      // 로그인 필요 → 신고 모달 닫고 로그인 모달 열기
+      setReportReviewId(null)
+      setReportSubmitting(false)
+      setShowLoginModal(true)
+      return
+    }
+
+    const res = await fetch('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: auth },
+      body: JSON.stringify({
+        reviewId: reportReviewId,
+        reason: reportReason,
+        detail: reportDetail.trim(),
+      }),
+    })
+
+    setReportSubmitting(false)
+
+    if (res.ok) {
+      setReportDone(true)
+    } else {
+      const body = await res.json().catch(() => ({}))
+      // 중복 신고(409) 메시지 포함해서 표시
+      alert(body.error ?? '신고에 실패했습니다.')
+    }
+  }
+
   // ── 로딩 화면 ───────────────────────────────────
   if (loading) {
     return (
@@ -553,7 +647,8 @@ export default function FeedPage() {
                     />
                     <div style={{
                       position: 'absolute', top: '40px', right: 0,
-                      width: '360px', maxWidth: 'calc(100vw - 40px)',
+                      width: isMobile ? 'calc(100vw - 32px)' : '360px',
+                      maxWidth: isMobile ? 'calc(100vw - 32px)' : '360px',
                       maxHeight: '400px', overflowY: 'auto',
                       background: '#FFFFFF',
                       borderRadius: '12px',
@@ -658,11 +753,11 @@ export default function FeedPage() {
       </div>
 
       {/* 피드 본문 */}
-      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '0 20px 60px' }}>
+      <div style={{ maxWidth: '720px', margin: '0 auto', padding: isMobile ? '0 16px 60px' : '0 20px 60px' }}>
 
         {/* 피드 헤더 */}
-        <div style={{ paddingTop: '32px', marginBottom: '24px' }}>
-          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: colors.titleText }}>
+        <div style={{ paddingTop: '32px', marginBottom: '20px' }}>
+          <h1 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', fontWeight: 700, color: colors.titleText }}>
             독자들의 솔직한 리뷰
           </h1>
           <p style={{ margin: '8px 0 0', fontSize: '15px', color: colors.subText }}>
@@ -670,15 +765,57 @@ export default function FeedPage() {
           </p>
         </div>
 
+        {/* 검색 바 */}
+        <div style={{ position: 'relative', marginBottom: '24px' }}>
+          {/* 돋보기 아이콘 */}
+          <span style={{
+            position: 'absolute', left: '16px', top: '50%',
+            transform: 'translateY(-50%)',
+            fontSize: '16px', color: colors.subText2,
+            pointerEvents: 'none', lineHeight: 1,
+          }}>
+            🔍
+          </span>
+          <input
+            type="text"
+            placeholder="리뷰 제목 또는 내용 검색"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%', height: '46px',
+              borderRadius: '22px',
+              border: `1px solid ${colors.border}`,
+              paddingLeft: '44px', paddingRight: '16px',
+              fontSize: '15px', outline: 'none',
+              boxSizing: 'border-box',
+              background: '#FFFFFF',
+              color: colors.text,
+            }}
+          />
+        </div>
+
         {/* 리뷰 목록 */}
         {reviews.length === 0 ? (
           <div style={{ ...styles.card, padding: '60px 20px', textAlign: 'center' }}>
-            <p style={{ margin: '0 0 8px', fontSize: '16px', color: colors.subText }}>
-              아직 리뷰가 없습니다
-            </p>
-            <p style={{ margin: 0, fontSize: '14px', color: colors.subText2 }}>
-              곧 리뷰어들의 솔직한 리뷰가 올라옵니다
-            </p>
+            {searchDebounced ? (
+              <>
+                <p style={{ margin: '0 0 8px', fontSize: '16px', color: colors.subText }}>
+                  검색 결과가 없습니다
+                </p>
+                <p style={{ margin: 0, fontSize: '14px', color: colors.subText2 }}>
+                  다른 키워드로 검색해보세요
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: '0 0 8px', fontSize: '16px', color: colors.subText }}>
+                  아직 리뷰가 없습니다
+                </p>
+                <p style={{ margin: 0, fontSize: '14px', color: colors.subText2 }}>
+                  곧 리뷰어들의 솔직한 리뷰가 올라옵니다
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -694,10 +831,61 @@ export default function FeedPage() {
               const isLong = review.content.length > 200
 
               return (
-                <div key={review.id} style={{ ...styles.card, padding: '24px' }}>
+                <div key={review.id} style={{ ...styles.card, padding: isMobile ? '16px' : '24px', position: 'relative' }}>
+
+                  {/* ⋯ 더보기 버튼 (오른쪽 상단 절대 위치) */}
+                  <div style={{ position: 'absolute', top: '16px', right: '16px' }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setOpenMenuId(openMenuId === review.id ? null : review.id)
+                      }}
+                      style={{
+                        background: 'none', border: 'none', padding: '4px 8px',
+                        fontSize: '18px', color: colors.subText2,
+                        cursor: 'pointer', lineHeight: 1, borderRadius: '6px',
+                      }}
+                      title="더보기"
+                    >
+                      ···
+                    </button>
+
+                    {/* 드롭다운 메뉴 */}
+                    {openMenuId === review.id && (
+                      <>
+                        {/* 바깥 클릭 시 닫기 */}
+                        <div
+                          onClick={() => setOpenMenuId(null)}
+                          style={{ position: 'fixed', inset: 0, zIndex: 90 }}
+                        />
+                        <div style={{
+                          position: 'absolute', top: '32px', right: 0,
+                          background: '#FFFFFF', borderRadius: '10px',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                          border: `1px solid ${colors.border}`,
+                          zIndex: 200, minWidth: '120px', overflow: 'hidden',
+                        }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              requireLogin(() => openReportModal(review.id))
+                            }}
+                            style={{
+                              display: 'block', width: '100%', textAlign: 'left',
+                              padding: '12px 16px', background: 'none', border: 'none',
+                              fontSize: '14px', color: colors.danger,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            신고하기
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
 
                   {/* 리뷰어 정보 영역 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingRight: '40px' }}>
                     {/* 프로필 원형 */}
                     <div style={{
                       width: '40px', height: '40px', borderRadius: '50%',
@@ -904,9 +1092,11 @@ export default function FeedPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                           {(commentsMap[review.id] ?? []).map((comment) => (
                             <div key={comment.id} style={{ display: 'flex', gap: '10px' }}>
-                              {/* 프로필 원형 */}
+                              {/* 프로필 원형 — 모바일에서 28px로 줄임 */}
                               <div style={{
-                                width: '32px', height: '32px', borderRadius: '50%',
+                                width: isMobile ? '28px' : '32px',
+                                height: isMobile ? '28px' : '32px',
+                                borderRadius: '50%',
                                 background: colors.primary, color: '#FFFFFF',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 fontSize: '13px', fontWeight: 600, flexShrink: 0,
@@ -1028,6 +1218,132 @@ export default function FeedPage() {
           </div>
         )}
       </div>
+
+      {/* 신고 모달 */}
+      {reportReviewId && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setReportReviewId(null) }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px 16px',
+          }}
+        >
+          <div style={{
+            width: '100%', maxWidth: '440px',
+            ...styles.card, padding: '32px',
+            boxSizing: 'border-box', position: 'relative',
+          }}>
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setReportReviewId(null)}
+              style={{
+                position: 'absolute', top: '16px', right: '16px',
+                background: 'none', border: 'none',
+                fontSize: '18px', color: colors.subText,
+                cursor: 'pointer', lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+
+            {reportDone ? (
+              /* 신고 완료 화면 */
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <p style={{ fontSize: '40px', margin: '0 0 16px', lineHeight: 1 }}>✅</p>
+                <p style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 600, color: colors.titleText }}>
+                  신고가 접수되었습니다
+                </p>
+                <p style={{ margin: '0 0 24px', fontSize: '14px', color: colors.subText }}>
+                  검토 후 조치를 취할게요
+                </p>
+                <button
+                  onClick={() => setReportReviewId(null)}
+                  style={{
+                    padding: '10px 32px', borderRadius: '10px',
+                    background: colors.primary, color: '#FFFFFF',
+                    border: 'none', fontSize: '15px', fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  확인
+                </button>
+              </div>
+            ) : (
+              /* 신고 사유 선택 화면 */
+              <>
+                <p style={{ margin: '0 0 24px', fontSize: '18px', fontWeight: 600, color: colors.titleText }}>
+                  리뷰 신고
+                </p>
+
+                {/* 신고 사유 선택 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                  {[
+                    { value: 'spam',         label: '스팸 또는 광고' },
+                    { value: 'spoiler',      label: '스포일러 포함' },
+                    { value: 'inappropriate',label: '부적절한 내용' },
+                    { value: 'etc',          label: '기타' },
+                  ].map(({ value, label }) => (
+                    <label
+                      key={value}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '10px',
+                        cursor: 'pointer', fontSize: '15px', color: colors.text,
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="reportReason"
+                        value={value}
+                        checked={reportReason === value}
+                        onChange={() => setReportReason(value)}
+                        style={{ accentColor: colors.primary, width: '16px', height: '16px' }}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+
+                {/* '기타' 선택 시 상세 입력 */}
+                {reportReason === 'etc' && (
+                  <textarea
+                    placeholder="신고 사유를 입력하세요"
+                    value={reportDetail}
+                    onChange={(e) => setReportDetail(e.target.value)}
+                    rows={3}
+                    style={{
+                      width: '100%', borderRadius: '10px',
+                      border: `1px solid ${colors.border}`,
+                      padding: '12px 14px', fontSize: '14px',
+                      color: colors.text, resize: 'vertical',
+                      outline: 'none', boxSizing: 'border-box',
+                      marginBottom: '16px',
+                    }}
+                  />
+                )}
+
+                {/* 신고 버튼 */}
+                <button
+                  onClick={handleReport}
+                  disabled={!reportReason || reportSubmitting}
+                  style={{
+                    width: '100%', height: '48px', borderRadius: '12px',
+                    background: !reportReason || reportSubmitting
+                      ? colors.subBackground : colors.danger,
+                    color: !reportReason || reportSubmitting ? colors.subText2 : '#FFFFFF',
+                    border: 'none', fontSize: '15px', fontWeight: 600,
+                    cursor: !reportReason || reportSubmitting ? 'not-allowed' : 'pointer',
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  {reportSubmitting ? '신고 중...' : '신고하기'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 로그인 모달 */}
       {showLoginModal && (

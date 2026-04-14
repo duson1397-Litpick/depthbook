@@ -10,6 +10,9 @@ import { PLANS, formatPrice } from '@/lib/plans'
 import Logo from '@/components/Logo'
 import Input from '@/components/Input'
 
+// 모바일 여부 기준 너비
+const MOBILE_BP = 768
+
 // 캠페인 상태 종류
 type CampaignStatus = 'draft' | 'recruiting' | 'active' | 'completed'
 
@@ -70,6 +73,22 @@ export default function PublisherDashboardPage() {
 
   // 카드 호버 중인 캠페인 id
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
+
+  // 검색어 입력값
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // 상태 필터 ('all' | CampaignStatus)
+  const [statusFilter, setStatusFilter] = useState<'all' | CampaignStatus>('all')
+
+  // 모바일 여부
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < MOBILE_BP)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   // 결제 이력 목록
   const [payments, setPayments] = useState<any[]>([])
@@ -195,6 +214,17 @@ export default function PublisherDashboardPage() {
     router.push('/publisher/login')
   }
 
+  // 검색어 + 상태 필터 적용한 캠페인 목록
+  const filteredCampaigns = campaigns.filter((c) => {
+    // 상태 필터: 'all'이면 전체
+    if (statusFilter !== 'all' && c.status !== statusFilter) return false
+    // 검색어: 제목에서 대소문자 무시 검색
+    if (searchQuery.trim()) {
+      return c.title.toLowerCase().includes(searchQuery.trim().toLowerCase())
+    }
+    return true
+  })
+
   // 인증 확인 중 로딩 화면
   if (authChecking) {
     return (
@@ -227,7 +257,7 @@ export default function PublisherDashboardPage() {
         style={{
           maxWidth: styles.maxWidth,
           margin: '0 auto',
-          padding: '32px 20px',
+          padding: isMobile ? '24px 16px' : '32px 20px',
         }}
       >
         {/* 헤더 */}
@@ -264,7 +294,7 @@ export default function PublisherDashboardPage() {
             <h1
               style={{
                 margin: 0,
-                fontSize: '24px',
+                fontSize: isMobile ? '20px' : '24px',
                 fontWeight: 700,
                 color: colors.titleText,
               }}
@@ -318,6 +348,57 @@ export default function PublisherDashboardPage() {
           + 새 캠페인 만들기
         </button>
 
+        {/* 캠페인 검색 + 상태 필터 */}
+        {!campaignsLoading && campaigns.length > 0 && (
+          <div style={{ marginBottom: '20px' }}>
+            {/* 검색 입력창 */}
+            <input
+              type="text"
+              placeholder="캠페인 제목 검색"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%', height: '40px',
+                borderRadius: '10px',
+                border: `1px solid ${colors.border}`,
+                padding: '0 14px', fontSize: '14px',
+                color: colors.text, outline: 'none',
+                boxSizing: 'border-box',
+                marginBottom: '12px',
+              }}
+            />
+
+            {/* 상태 필터 버튼 모음 */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {([
+                { value: 'all',        label: '전체' },
+                { value: 'draft',      label: '임시저장' },
+                { value: 'recruiting', label: '모집 중' },
+                { value: 'active',     label: '진행 중' },
+                { value: 'completed',  label: '완료' },
+              ] as { value: 'all' | CampaignStatus; label: string }[]).map(({ value, label }) => {
+                const isActive = statusFilter === value
+                return (
+                  <button
+                    key={value}
+                    onClick={() => setStatusFilter(value)}
+                    style={{
+                      padding: '6px 14px', borderRadius: '20px',
+                      fontSize: '13px', fontWeight: isActive ? 600 : 400,
+                      cursor: 'pointer', transition: 'all 0.15s',
+                      border: isActive ? 'none' : `1px solid ${colors.border}`,
+                      background: isActive ? colors.primary : 'none',
+                      color: isActive ? '#FFFFFF' : colors.subText,
+                    }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* 캠페인 목록 */}
         {campaignsLoading ? (
           <div
@@ -358,10 +439,20 @@ export default function PublisherDashboardPage() {
               첫 캠페인을 만들어 독자의 반응을 확인해보세요
             </p>
           </div>
+        ) : filteredCampaigns.length === 0 ? (
+          // 검색/필터 결과 없음
+          <div style={{ ...styles.card, padding: '60px 20px', textAlign: 'center' }}>
+            <p style={{ margin: '0 0 8px', fontSize: '16px', color: colors.subText }}>
+              검색 결과가 없습니다
+            </p>
+            <p style={{ margin: 0, fontSize: '14px', color: colors.subText2 }}>
+              다른 검색어나 필터를 시도해보세요
+            </p>
+          </div>
         ) : (
           // 캠페인 카드 목록
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {campaigns.map((campaign) => {
+            {filteredCampaigns.map((campaign) => {
               const badge = STATUS_BADGE[campaign.status] ?? STATUS_BADGE.draft
 
               return (
@@ -372,7 +463,7 @@ export default function PublisherDashboardPage() {
                   onMouseLeave={() => setHoveredCard(null)}
                   style={{
                     ...styles.card,
-                    padding: '24px',
+                    padding: isMobile ? '16px' : '24px',
                     cursor: 'pointer',
                     boxShadow: hoveredCard === campaign.id
                       ? '0 8px 24px rgba(0,0,0,0.08)'

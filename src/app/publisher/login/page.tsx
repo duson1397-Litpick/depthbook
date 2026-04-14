@@ -11,6 +11,9 @@ import Logo from '@/components/Logo'
 // 현재 선택된 탭 종류
 type Tab = 'login' | 'signup'
 
+// 화면 모드 (탭 화면 or 비밀번호 재설정 화면)
+type Mode = 'tabs' | 'reset'
+
 // 메시지 종류 (에러 또는 성공)
 type MessageType = 'error' | 'success'
 
@@ -24,6 +27,7 @@ export default function PublisherLoginPage() {
   const supabase = createClient()
 
   const [tab, setTab] = useState<Tab>('login')
+  const [mode, setMode] = useState<Mode>('tabs')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<Message | null>(null)
 
@@ -37,8 +41,14 @@ export default function PublisherLoginPage() {
   const [signupPassword, setSignupPassword] = useState('')
   const [signupPasswordConfirm, setSignupPasswordConfirm] = useState('')
 
+  // 비밀번호 재설정 상태
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetSending, setResetSending] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+
   // 버튼 호버 상태
   const [btnHover, setBtnHover] = useState(false)
+  const [forgotHover, setForgotHover] = useState(false)
 
   // 인풋 포커스 상태 (각 인풋별로 관리)
   const [focusedInput, setFocusedInput] = useState<string | null>(null)
@@ -58,6 +68,23 @@ export default function PublisherLoginPage() {
   const handleTabChange = (next: Tab) => {
     setTab(next)
     setMessage(null)
+  }
+
+  // 비밀번호 재설정 링크 발송
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setResetSending(true)
+
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+
+    if (error) {
+      setMessage({ type: 'error', text: error.message })
+    } else {
+      setResetSent(true)
+    }
+    setResetSending(false)
   }
 
   // 로그인 처리
@@ -196,35 +223,37 @@ export default function PublisherLoginPage() {
           </p>
         </div>
 
-        {/* 탭 */}
-        <div>
-          <div style={{ display: 'flex' }}>
-            {(['login', 'signup'] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => handleTabChange(t)}
-                style={{
-                  flex: 1,
-                  height: '44px',
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: tab === t
-                    ? `2px solid ${colors.primary}`
-                    : '2px solid transparent',
-                  color: tab === t ? colors.primary : colors.subText,
-                  fontWeight: tab === t ? 700 : 400,
-                  fontSize: '15px',
-                  cursor: 'pointer',
-                  transition: 'color 0.15s',
-                }}
-              >
-                {t === 'login' ? '로그인' : '회원가입'}
-              </button>
-            ))}
+        {/* 탭 — 비밀번호 재설정 모드일 때는 숨김 */}
+        {mode === 'tabs' && (
+          <div>
+            <div style={{ display: 'flex' }}>
+              {(['login', 'signup'] as Tab[]).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => handleTabChange(t)}
+                  style={{
+                    flex: 1,
+                    height: '44px',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: tab === t
+                      ? `2px solid ${colors.primary}`
+                      : '2px solid transparent',
+                    color: tab === t ? colors.primary : colors.subText,
+                    fontWeight: tab === t ? 700 : 400,
+                    fontSize: '15px',
+                    cursor: 'pointer',
+                    transition: 'color 0.15s',
+                  }}
+                >
+                  {t === 'login' ? '로그인' : '회원가입'}
+                </button>
+              ))}
+            </div>
+            {/* 탭 아래 구분선 */}
+            <div style={{ height: '1px', background: colors.border }} />
           </div>
-          {/* 탭 아래 구분선 */}
-          <div style={{ height: '1px', background: colors.border }} />
-        </div>
+        )}
 
         {/* 폼 영역 */}
         <div style={{ marginTop: '24px' }}>
@@ -245,8 +274,64 @@ export default function PublisherLoginPage() {
             </div>
           )}
 
+          {/* 비밀번호 재설정 모드 */}
+          {mode === 'reset' && (
+            <div>
+              <p style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 600, color: colors.titleText, textAlign: 'center' }}>
+                비밀번호 재설정
+              </p>
+              <p style={{ margin: '0 0 20px', fontSize: '14px', color: colors.subText, textAlign: 'center', lineHeight: 1.6 }}>
+                가입한 이메일을 입력하면 재설정 링크를 보내드립니다
+              </p>
+
+              {resetSent ? (
+                <p style={{
+                  padding: '16px', borderRadius: '8px', fontSize: '14px',
+                  background: '#F0FDF4', border: `1px solid ${colors.success}`,
+                  color: colors.success, textAlign: 'center', lineHeight: 1.6,
+                }}>
+                  재설정 링크가 이메일로 발송되었습니다.<br />이메일을 확인해주세요.
+                </p>
+              ) : (
+                <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <input
+                    type="email"
+                    placeholder="가입한 이메일 주소"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    onFocus={() => setFocusedInput('resetEmail')}
+                    onBlur={() => setFocusedInput(null)}
+                    required
+                    style={inputStyle('resetEmail')}
+                  />
+                  <button
+                    type="submit"
+                    disabled={resetSending}
+                    onMouseEnter={() => setBtnHover(true)}
+                    onMouseLeave={() => setBtnHover(false)}
+                    style={{ ...buttonStyle, marginTop: 0 }}
+                  >
+                    {resetSending ? '발송 중...' : '재설정 링크 보내기'}
+                  </button>
+                </form>
+              )}
+
+              {/* 로그인으로 돌아가기 */}
+              <button
+                onClick={() => { setMode('tabs'); setResetSent(false); setMessage(null) }}
+                style={{
+                  background: 'none', border: 'none', padding: 0,
+                  fontSize: '14px', color: colors.subText, cursor: 'pointer',
+                  display: 'block', margin: '16px auto 0', textAlign: 'center',
+                }}
+              >
+                ← 로그인으로 돌아가기
+              </button>
+            </div>
+          )}
+
           {/* 로그인 폼 */}
-          {tab === 'login' && (
+          {mode === 'tabs' && tab === 'login' && (
             <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <input
                 type="email"
@@ -268,6 +353,24 @@ export default function PublisherLoginPage() {
                 required
                 style={inputStyle('loginPassword')}
               />
+              {/* 비밀번호를 잊으셨나요? */}
+              <div style={{ textAlign: 'right', marginTop: '-4px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setMode('reset'); setMessage(null) }}
+                  onMouseEnter={() => setForgotHover(true)}
+                  onMouseLeave={() => setForgotHover(false)}
+                  style={{
+                    background: 'none', border: 'none', padding: 0,
+                    fontSize: '13px',
+                    color: forgotHover ? colors.primary : colors.subText,
+                    cursor: 'pointer',
+                    transition: 'color 0.15s',
+                  }}
+                >
+                  비밀번호를 잊으셨나요?
+                </button>
+              </div>
               <button
                 type="submit"
                 disabled={loading}
@@ -281,7 +384,7 @@ export default function PublisherLoginPage() {
           )}
 
           {/* 회원가입 폼 */}
-          {tab === 'signup' && (
+          {mode === 'tabs' && tab === 'signup' && (
             <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <input
                 type="text"

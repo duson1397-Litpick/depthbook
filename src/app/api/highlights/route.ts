@@ -95,3 +95,38 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ highlight: data })
 }
+
+// DELETE { highlightId, accessToken } → 하이라이트 삭제
+export async function DELETE(request: NextRequest) {
+  const { highlightId, accessToken } = await request.json()
+
+  if (!highlightId || !accessToken) {
+    return NextResponse.json({ error: '필수 값이 없습니다' }, { status: 400 })
+  }
+
+  const supabase = getServiceClient()
+
+  // access_token으로 reviewer 확인
+  const { data: reviewer } = await supabase
+    .from('campaign_reviewers')
+    .select('id, reviewer_id')
+    .eq('access_token', accessToken)
+    .single()
+
+  if (!reviewer) {
+    return NextResponse.json({ error: '유효하지 않은 토큰' }, { status: 404 })
+  }
+
+  // 본인의 하이라이트만 삭제 가능
+  const { error } = await supabase
+    .from('highlights')
+    .delete()
+    .eq('id', highlightId)
+    .eq('reviewer_id', reviewer.reviewer_id)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ deleted: true })
+}

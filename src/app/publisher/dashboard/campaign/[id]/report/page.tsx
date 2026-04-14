@@ -60,6 +60,25 @@ function filterText(values: (string | null)[]): string[] {
   return values.filter((v): v is string => !!v && v.trim() !== '')
 }
 
+// 한줄평 텍스트 배열에서 자주 등장하는 단어 상위 N개 추출
+// 공백으로 나눈 뒤 특수문자 제거, 2글자 이상 단어만 집계
+function topWords(texts: string[], topN = 5): string[] {
+  const freq = new Map<string, number>()
+  for (const text of texts) {
+    for (const raw of text.split(/\s+/)) {
+      // 한글, 영문, 숫자만 남기기
+      const word = raw.replace(/[^\uAC00-\uD7A3a-zA-Z0-9]/g, '').trim()
+      if (word.length >= 2) {
+        freq.set(word, (freq.get(word) ?? 0) + 1)
+      }
+    }
+  }
+  return Array.from(freq.entries())
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, topN)
+    .map(([word]) => word)
+}
+
 export default function CampaignReportPage({ params }: { params: { id: string } }) {
   const campaignId = params.id
   const router = useRouter()
@@ -89,6 +108,9 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
 
   // 뒤로 버튼 호버 상태
   const [backHover, setBackHover] = useState(false)
+
+  // 리포트 링크 복사 완료 상태
+  const [copied, setCopied] = useState(false)
 
   // 열람 기록 목록
   const [readingSessions, setReadingSessions] = useState<ReadingSession[]>([])
@@ -272,6 +294,11 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
     .filter((s) => s.one_liner && s.one_liner.trim())
     .map((s) => ({ text: s.one_liner!, rating: s.rating }))
 
+  // 한줄평 3개 이상일 때 빈도 단어 태그 추출
+  const oneLinerWordTags = oneLiners.length >= 3
+    ? topWords(oneLiners.map((o) => o.text))
+    : []
+
   // 좋았던 점 / 아쉬운 점
   const goodPoints = filterText(surveys.map((s) => s.good_points))
   const badPoints = filterText(surveys.map((s) => s.bad_points))
@@ -313,7 +340,7 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
         style={{
           maxWidth: styles.maxWidth,
           margin: '0 auto',
-          padding: '32px 20px 60px',
+          padding: isMobile ? '24px 16px 60px' : '32px 20px 60px',
         }}
       >
         {/* 헤더 */}
@@ -354,6 +381,32 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
             리뷰어 {completedReviewers}명의 익명 피드백
           </p>
         </div>
+
+        {/* 한 줄 요약 문장 — 참여자 수 + 평균 별점 + 분위기 */}
+        {surveys.length > 0 && (
+          <div style={{
+            ...styles.card,
+            padding: '16px 20px',
+            marginBottom: '16px',
+          }}>
+            <p style={{ margin: 0, fontSize: '15px', color: colors.text, lineHeight: 1.6 }}>
+              리뷰어{' '}
+              <strong style={{ color: colors.titleText }}>{completedReviewers}명</strong>
+              이 참여했으며,{' '}
+              {avgRating !== null
+                ? <>평균 <strong style={{ color: colors.titleText }}>{formatScore(avgRating)}점</strong>의 평가를 받았습니다.</>
+                : '아직 설문 데이터가 없습니다.'
+              }
+              {/* 별점에 따른 추가 문구 */}
+              {avgRating !== null && avgRating >= 4.0 && (
+                <span style={{ color: colors.success }}> 높은 평가를 받고 있습니다 👏</span>
+              )}
+              {avgRating !== null && avgRating < 3.0 && (
+                <span style={{ color: colors.warning }}> 개선 포인트를 확인해보세요</span>
+              )}
+            </p>
+          </div>
+        )}
 
         {/* 요약 카드 3개 */}
         <div
@@ -446,6 +499,26 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
               아직 한줄평이 없습니다
             </div>
           ) : (
+            <>
+              {/* 빈도 단어 태그 — 한줄평 3개 이상일 때 표시 */}
+              {oneLinerWordTags.length > 0 && (
+                <div style={{
+                  display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px',
+                }}>
+                  {oneLinerWordTags.map((word) => (
+                    <span key={word} style={{
+                      background: '#EEF2FF',
+                      color: colors.info,
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                    }}>
+                      {word}
+                    </span>
+                  ))}
+                </div>
+              )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {oneLiners.map((item, idx) => (
                 // borderLeft 없는 일반 카드 스타일
@@ -463,6 +536,7 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
                 </div>
               ))}
             </div>
+            </>
           )}
         </div>
 
@@ -952,6 +1026,32 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
             </div>
           )
         })()}
+
+        {/* 리포트 링크 복사 버튼 */}
+        <div style={{ textAlign: 'center', paddingTop: '8px' }}>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href).then(() => {
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              })
+            }}
+            style={{
+              background: copied ? colors.success : 'none',
+              border: `1px solid ${copied ? colors.success : colors.border}`,
+              borderRadius: '10px',
+              padding: '10px 24px',
+              fontSize: '14px',
+              fontWeight: 500,
+              color: copied ? '#FFFFFF' : colors.text,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              minHeight: '44px',
+            }}
+          >
+            {copied ? '✓ 복사 완료!' : '리포트 링크 복사'}
+          </button>
+        </div>
       </div>
     </div>
   )

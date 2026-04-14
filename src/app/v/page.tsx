@@ -108,6 +108,10 @@ function ViewerPageInner() {
   const [highlightPopup, setHighlightPopup] = useState<HighlightPopup | null>(null)
   const [highlights, setHighlights] = useState<HighlightItem[]>([])
   const [showHighlightPanel, setShowHighlightPanel] = useState(false)
+  // 저장 성공 토스트 표시 여부
+  const [highlightToast, setHighlightToast] = useState(false)
+  // selected 이벤트 직후 click 이벤트가 팝업을 닫지 않도록 잠깐 막는 플래그
+  const suppressPopupClearRef = useRef(false)
 
   // ── 설문 상태 ──────────────────────────────────
   const [surveySubmitted, setSurveySubmitted] = useState(false)
@@ -229,23 +233,38 @@ function ViewerPageInner() {
       rendition.on('selected', (cfiRange: string, contents: any) => {
         const selection = contents.window.getSelection()
         if (!selection || selection.isCollapsed) { setHighlightPopup(null); return }
+        // 앞뒤 공백 제거 후 공백만 있는 선택은 무시
         const text = selection.toString().trim()
-        if (!text) { setHighlightPopup(null); return }
+        if (text.length === 0) { setHighlightPopup(null); return }
 
+        // iframe 내부에서 getBoundingClientRect를 호출하면
+        // 해당 좌표는 iframe 뷰포트 기준이므로 iframe의 화면 위치를 더해줘야 함
         const range = selection.getRangeAt(0)
         const selRect = range.getBoundingClientRect()
         const iframe = viewerRef.current?.querySelector('iframe')
         const iframeRect = iframe?.getBoundingClientRect()
-        if (iframeRect) {
-          setHighlightPopup({
-            x: iframeRect.left + selRect.left + selRect.width / 2,
-            y: iframeRect.top + selRect.top,
-            cfiRange, text,
-          })
-        }
+        if (!iframeRect) return
+
+        // selRect가 모두 0이면 (선택 범위 계산 실패) 패널 중앙 위에 표시
+        const x = selRect.width > 0
+          ? iframeRect.left + selRect.left + selRect.width / 2
+          : iframeRect.left + iframeRect.width / 2
+        const y = selRect.height > 0
+          ? iframeRect.top + selRect.top
+          : iframeRect.top + iframeRect.height * 0.3
+
+        // selected 직후 click 이벤트가 팝업을 닫지 않도록 500ms 보호
+        suppressPopupClearRef.current = true
+        setTimeout(() => { suppressPopupClearRef.current = false }, 500)
+
+        setHighlightPopup({ x, y, cfiRange, text })
       })
 
-      rendition.on('click', () => setHighlightPopup(null))
+      // epub 콘텐츠 클릭 시 팝업 닫기 (선택 직후에는 막음)
+      rendition.on('click', () => {
+        if (suppressPopupClearRef.current) return
+        setHighlightPopup(null)
+      })
 
       book.ready.then(() => {
         book.locations.generate(1024).then(() => setTotalPages(book.locations.length()))
@@ -426,18 +445,28 @@ function ViewerPageInner() {
   // ── 하이라이트 저장 ────────────────────────────
   const handleHighlight = async () => {
     if (!highlightPopup || !renditionRef.current) return
-    const { cfiRange, text } = highlightPopup
+    const { cfiRange } = highlightPopup
+    // 앞뒤 공백 제거 후 빈 문자열이면 저장하지 않음
+    const text = highlightPopup.text.trim()
+    if (!text) { setHighlightPopup(null); return }
 
-    // epub에 색상 표시 (클라이언트 즉각 반영)
-    renditionRef.current.annotations.highlight(cfiRange, {}, () => {}, 'hl', {
-      fill: '#FBBF24', 'fill-opacity': '0.3',
-    })
+    // epub에 색상 표시 (실패해도 저장은 계속 진행)
+    try {
+      renditionRef.current.annotations.highlight(cfiRange, {}, () => {}, 'hl', {
+        fill: '#FBBF24', 'fill-opacity': '0.3',
+      })
+    } catch (e) {
+      // 주석 표시 실패는 저장에 영향 없음
+    }
     setHighlightPopup(null)
+
+    // 현재 챕터 레이블을 함께 저장
+    const chapterLabel = currentChapterRef.current.label || null
 
     const res = await fetch('/api/highlights', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accessToken: token, text, cfiRange, chapterLabel: null }),
+      body: JSON.stringify({ accessToken: token, text, cfiRange, chapterLabel }),
     })
 
     if (res.ok) {
@@ -453,11 +482,35 @@ function ViewerPageInner() {
           setHighlights(fresh ?? [])
         }
       }
+      // 저장 성공 토스트 (2초 후 사라짐)
+      setHighlightToast(true)
+      setTimeout(() => setHighlightToast(false), 2000)
     } else {
-      // 저장 실패 시 에러 내용 표시
+      // 저장 실패 시 구체적인 에러 표시
       const body = await res.json().catch(() => ({}))
-      alert(`하이라이트 저장에 실패했습니다.\n${body.error ?? res.status}`)
+      const detail = [
+        body.error, body.details, body.code, `HTTP ${res.status}`
+      ].filter(Boolean).join(' / ')
+      alert(`하이라이트 저장에 실패했습니다.\n${detail}`)
     }
+  }
+
+  // ── 하이라이트 삭제 ────────────────────────────
+  const handleDeleteHighlight = async (highlightId: string, cfiRange: string) => {
+    // 즉시 상태에서 제거 (낙관적 업데이트)
+    setHighlights((prev) => prev.filter((hl) => hl.id !== highlightId))
+
+    // epub 주석에서도 제거
+    try {
+      renditionRef.current?.annotations.remove(cfiRange, 'highlight')
+    } catch (e) {}
+
+    // API 삭제 요청
+    await fetch('/api/highlights', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ highlightId, accessToken: token }),
+    })
   }
 
   // ── 이메일 인증 처리 ───────────────────────────
@@ -1178,15 +1231,19 @@ function ViewerPageInner() {
         height: '56px', minHeight: '56px', background: '#FFFFFF',
         boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 20px', gap: '12px', position: 'relative', zIndex: 20,
+        padding: isMobile ? '0 12px' : '0 20px',
+        gap: '12px', position: 'relative', zIndex: 20,
       }}>
         <Logo size="small" />
-        <span style={{
-          flex: 1, fontSize: '14px', color: colors.subText, textAlign: 'center',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 8px',
-        }}>
-          {campaignTitle}
-        </span>
+        {/* 모바일에서 캠페인 제목 숨김 — 공간 부족 */}
+        {!isMobile && (
+          <span style={{
+            flex: 1, fontSize: '14px', color: colors.subText, textAlign: 'center',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 8px',
+          }}>
+            {campaignTitle}
+          </span>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '13px', color: colors.subText2, whiteSpace: 'nowrap' }}>
             {totalPages > 0 ? `${progress}%` : ''}
@@ -1314,21 +1371,42 @@ function ViewerPageInner() {
                 </p>
               ) : (
                 highlights.map((hl) => (
-                  <div key={hl.id} onClick={() => renditionRef.current?.display(hl.cfi_range)}
+                  <div key={hl.id}
                     style={{
                       padding: '12px', borderRadius: '8px', marginBottom: '8px',
-                      background: '#FFFBEB', borderLeft: '3px solid #FBBF24', cursor: 'pointer',
+                      background: '#FFFBEB', borderLeft: '3px solid #FBBF24',
+                      position: 'relative',
                     }}>
-                    <p style={{
-                      margin: 0, fontSize: '13px', color: colors.text, lineHeight: 1.6,
-                      display: '-webkit-box', WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                    }}>{hl.text}</p>
-                    {hl.chapter_label && (
-                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: colors.subText2 }}>
-                        {hl.chapter_label}
-                      </p>
-                    )}
+                    {/* 클릭하면 해당 위치로 이동 */}
+                    <div
+                      onClick={() => renditionRef.current?.display(hl.cfi_range)}
+                      style={{ cursor: 'pointer', paddingRight: '24px' }}
+                    >
+                      <p style={{
+                        margin: 0, fontSize: '13px', color: colors.text, lineHeight: 1.6,
+                        display: '-webkit-box', WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                      }}>{hl.text}</p>
+                      {hl.chapter_label && (
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: colors.subText2 }}>
+                          {hl.chapter_label}
+                        </p>
+                      )}
+                    </div>
+                    {/* 삭제 버튼 */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteHighlight(hl.id, hl.cfi_range)
+                      }}
+                      style={{
+                        position: 'absolute', top: '8px', right: '8px',
+                        background: 'none', border: 'none',
+                        fontSize: '13px', color: colors.subText2,
+                        cursor: 'pointer', padding: '2px 4px', lineHeight: 1,
+                      }}
+                      title="하이라이트 삭제"
+                    >✕</button>
                   </div>
                 ))
               )}
@@ -1345,12 +1423,14 @@ function ViewerPageInner() {
         justifyContent: 'space-between', padding: '0 16px',
         position: 'relative', zIndex: 20,
       }}>
-        {/* 이전/진행률/다음 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+        {/* 이전/진행률/다음 — 모바일에서 간격 줄임 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '24px' }}>
           <button onClick={() => renditionRef.current?.prev()} disabled={atStart} style={{
             background: 'none', border: 'none', fontSize: '14px',
             color: atStart ? colors.subText2 : colors.text,
-            cursor: atStart ? 'default' : 'pointer', padding: '8px',
+            cursor: atStart ? 'default' : 'pointer',
+            padding: isMobile ? '8px 6px' : '8px',
+            minHeight: '44px',
           }}>← 이전</button>
           <span style={{ fontSize: '14px', color: colors.subText, minWidth: '36px', textAlign: 'center' }}>
             {totalPages > 0 ? `${progress}%` : '—'}
@@ -1358,7 +1438,9 @@ function ViewerPageInner() {
           <button onClick={() => renditionRef.current?.next()} disabled={atEnd} style={{
             background: 'none', border: 'none', fontSize: '14px',
             color: atEnd ? colors.subText2 : colors.text,
-            cursor: atEnd ? 'default' : 'pointer', padding: '8px',
+            cursor: atEnd ? 'default' : 'pointer',
+            padding: isMobile ? '8px 6px' : '8px',
+            minHeight: '44px',
           }}>다음 →</button>
         </div>
 
@@ -1369,9 +1451,12 @@ function ViewerPageInner() {
             onClick={() => setPhase('survey')}
             style={{
               background: colors.primary, color: '#FFFFFF',
-              border: 'none', padding: '8px 16px', borderRadius: '8px',
-              fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              whiteSpace: 'nowrap',
+              border: 'none',
+              padding: isMobile ? '8px 10px' : '8px 16px',
+              borderRadius: '8px',
+              fontSize: isMobile ? '12px' : '13px',
+              fontWeight: 600, cursor: 'pointer',
+              whiteSpace: 'nowrap', minHeight: '44px',
             }}
           >
             설문 작성 →
@@ -1382,9 +1467,12 @@ function ViewerPageInner() {
             onClick={() => setPhase('publicReview')}
             style={{
               background: 'none', color: colors.primary,
-              border: `1px solid ${colors.primary}`, padding: '8px 16px', borderRadius: '8px',
-              fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              whiteSpace: 'nowrap',
+              border: `1px solid ${colors.primary}`,
+              padding: isMobile ? '8px 10px' : '8px 16px',
+              borderRadius: '8px',
+              fontSize: isMobile ? '12px' : '13px',
+              fontWeight: 600, cursor: 'pointer',
+              whiteSpace: 'nowrap', minHeight: '44px',
             }}
           >
             공개 리뷰 작성 →
@@ -1396,6 +1484,27 @@ function ViewerPageInner() {
           </span>
         )}
       </div>
+
+      {/* 하이라이트 저장 성공 토스트 */}
+      {highlightToast && (
+        <div style={{
+          position: 'fixed',
+          bottom: '80px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 200,
+          background: colors.titleText,
+          color: '#FFFFFF',
+          padding: '10px 20px',
+          borderRadius: '8px',
+          fontSize: '14px',
+          fontWeight: 500,
+          pointerEvents: 'none',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+        }}>
+          하이라이트 저장됨
+        </div>
+      )}
 
       {/* 하이라이트 팝업 */}
       {highlightPopup && (

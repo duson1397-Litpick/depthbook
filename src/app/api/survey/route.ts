@@ -3,6 +3,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { recalculateGrade } from '@/lib/grade'
+import { sendEmail } from '@/lib/email'
+import { surveyThankYouEmail } from '@/lib/email-templates'
 
 function getServiceClient() {
   return createClient(
@@ -114,6 +116,29 @@ export async function POST(request: NextRequest) {
       console.error('등급 재계산 실패:', err)
     })
   }
+
+  // 리뷰어에게 감사 이메일 발송 (fire-and-forget)
+  // 캠페인 제목과 리뷰어 이메일을 조회해서 발송
+  supabase
+    .from('campaigns')
+    .select('title')
+    .eq('id', reviewer.campaign_id)
+    .single()
+    .then(({ data: campaignData }) => {
+      if (!campaignData?.title) return
+
+      supabase
+        .from('profiles')
+        .select('email')
+        .eq('id', reviewer.reviewer_id)
+        .single()
+        .then(({ data: profileData }) => {
+          if (!profileData?.email) return
+
+          const { subject, html } = surveyThankYouEmail(campaignData.title)
+          sendEmail({ to: profileData.email, subject, html })
+        })
+    })
 
   return NextResponse.json({ success: true })
 }

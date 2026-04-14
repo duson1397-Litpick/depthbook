@@ -332,12 +332,13 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     })
   }
 
-  // 리뷰어 승인
+  // 리뷰어 승인 — 서버 API 경유 (이메일 발송 포함)
   const handleApprove = async (reviewerRowId: string) => {
-    await supabase
-      .from('campaign_reviewers')
-      .update({ status: 'accepted', accepted_at: new Date().toISOString() })
-      .eq('id', reviewerRowId)
+    await fetch('/api/approve-reviewer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campaignReviewerId: reviewerRowId }),
+    })
 
     const { data: { user } } = await supabase.auth.getUser()
     if (user) await loadData(user.id)

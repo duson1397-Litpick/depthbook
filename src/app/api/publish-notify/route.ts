@@ -4,6 +4,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { createNotification } from '@/lib/notify'
+import { sendEmail } from '@/lib/email'
+import { publishNotificationEmail } from '@/lib/email-templates'
 
 function getServiceClient() {
   return createClient(
@@ -46,11 +48,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ sent: 0 })
   }
 
-  // 3. 각 유저에게 알림 생성
+  // 3. 유저 이메일 일괄 조회
+  const userIds = wtrUsers.map((u) => u.user_id)
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, email')
+    .in('id', userIds)
+
+  const emailMap: Record<string, string> = {}
+  for (const p of profiles ?? []) {
+    if (p.email) emailMap[p.id] = p.email
+  }
+
+  // 4. 각 유저에게 앱 알림 생성 + 이메일 발송 (fire-and-forget)
   const title = campaign.title ?? '관심 도서'
+  const { subject, html } = publishNotificationEmail(title, campaign.purchase_url!)
   let sent = 0
 
   for (const { user_id } of wtrUsers) {
+    // 앱 내 알림
     await createNotification({
       userId: user_id,
       type: 'book_published',
@@ -58,6 +74,13 @@ export async function POST(request: NextRequest) {
       referenceType: 'campaign',
       message: `관심 등록하신 "${title}"이(가) 출간되었습니다!`,
     })
+
+    // 이메일 발송 — 실패해도 나머지는 계속 발송
+    const email = emailMap[user_id]
+    if (email) {
+      sendEmail({ to: email, subject, html })
+    }
+
     sent++
   }
 
