@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import Footer from '@/components/Footer'
 import { timeAgo } from '@/lib/timeago'
 
 // 공개 리뷰 데이터 형태
@@ -1218,6 +1219,9 @@ export default function FeedPage() {
           </div>
         )}
       </div>
+
+      {/* 푸터 */}
+      <Footer />
 
       {/* 신고 모달 */}
       {reportReviewId && (

@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import Footer from '@/components/Footer'
 
 export default function HomePage() {
   const router = useRouter()
@@ -394,25 +395,7 @@ export default function HomePage() {
       </div>
 
       {/* ── 푸터 ──────────────────────────────────── */}
-      <footer style={{
-        background: colors.titleText,
-        padding: isMobile ? '32px 20px' : '40px 20px',
-        textAlign: 'center',
-      }}>
-        {/* 로고 텍스트 (흰색) */}
-        <p style={{
-          margin: 0, fontSize: '18px', fontWeight: 800,
-          color: '#FFFFFF', letterSpacing: '-1px',
-        }}>
-          DepthBook
-        </p>
-        <p style={{ margin: '12px 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-          출간 전 원고의 독자 반응을 수집하는 플랫폼
-        </p>
-        <p style={{ margin: '8px 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-          문의: contact@depthbook.kr
-        </p>
-      </footer>
+      <Footer />
     </div>
   )
 }
