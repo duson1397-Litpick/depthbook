@@ -23,6 +23,24 @@ interface Highlight {
   text: string
   chapter_label: string | null
   created_at: string
+  campaign_reviewer_id: string | null
+}
+
+// 장르 비교용 캠페인 통계 형태
+interface GenreStats {
+  title: string
+  avgRating: number | null
+  avgRecommend: number | null
+  wtrCount: number
+  isCurrent: boolean
+}
+
+// 열람 기록 형태 (reading_sessions 테이블)
+interface ReadingSession {
+  chapter_index: number
+  chapter_label: string | null
+  duration_seconds: number
+  campaign_reviewer_id: string
 }
 
 // 숫자를 소수점 한 자리까지 표시 (예: 4.166... → "4.2")
@@ -72,6 +90,12 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
   // 뒤로 버튼 호버 상태
   const [backHover, setBackHover] = useState(false)
 
+  // 열람 기록 목록
+  const [readingSessions, setReadingSessions] = useState<ReadingSession[]>([])
+
+  // 장르 비교 통계 목록
+  const [genreStats, setGenreStats] = useState<GenreStats[]>([])
+
   // 화면 너비 감지
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -113,10 +137,10 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
 
       setSurveys(surveyData ?? [])
 
-      // 하이라이트 조회
+      // 하이라이트 조회 (리뷰어 구분을 위해 campaign_reviewer_id 포함)
       const { data: highlightData } = await supabase
         .from('highlights')
-        .select('text, chapter_label, created_at')
+        .select('text, chapter_label, created_at, campaign_reviewer_id')
         .eq('campaign_id', campaignId)
         .order('created_at', { ascending: true })
 
@@ -147,6 +171,74 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
         .eq('status', 'completed')
 
       setCompletedReviewers(completed ?? 0)
+
+      // 열람 기록 조회
+      const sessionRes = await fetch(`/api/reading-session?campaignId=${campaignId}`)
+      if (sessionRes.ok) {
+        const { sessions } = await sessionRes.json()
+        setReadingSessions(sessions ?? [])
+      }
+
+      // 장르 비교 조회 — 같은 장르의 내 다른 캠페인들과 비교
+      if (campaign.genre) {
+        const { data: sameGenre } = await supabase
+          .from('campaigns')
+          .select('id, title')
+          .eq('genre', campaign.genre)
+          .eq('publisher_id', user.id)
+          .in('status', ['active', 'completed'])
+
+        const siblings = sameGenre ?? []
+        if (siblings.length > 1 || (siblings.length === 1 && siblings[0].id !== campaignId)) {
+          // 각 캠페인의 설문 평균 + 읽고 싶다 수를 한꺼번에 조회
+          const ids = siblings.map((c: { id: string }) => c.id)
+
+          const { data: allSurveys } = await supabase
+            .from('surveys')
+            .select('campaign_id, rating, recommend_level')
+            .in('campaign_id', ids)
+
+          const { data: allWtr } = await supabase
+            .from('want_to_read')
+            .select('campaign_id')
+            .in('campaign_id', ids)
+
+          // campaign_id별로 집계
+          const surveyMap = new Map<string, { ratings: number[]; recommends: number[] }>()
+          for (const s of allSurveys ?? []) {
+            if (!surveyMap.has(s.campaign_id)) {
+              surveyMap.set(s.campaign_id, { ratings: [], recommends: [] })
+            }
+            const entry = surveyMap.get(s.campaign_id)!
+            if (s.rating !== null) entry.ratings.push(s.rating)
+            if (s.recommend_level !== null) entry.recommends.push(s.recommend_level)
+          }
+
+          const wtrMap = new Map<string, number>()
+          for (const w of allWtr ?? []) {
+            wtrMap.set(w.campaign_id, (wtrMap.get(w.campaign_id) ?? 0) + 1)
+          }
+
+          const stats: GenreStats[] = siblings.map((c: { id: string; title: string }) => {
+            const sm = surveyMap.get(c.id) ?? { ratings: [], recommends: [] }
+            const avgR = sm.ratings.length
+              ? sm.ratings.reduce((a: number, b: number) => a + b, 0) / sm.ratings.length
+              : null
+            const avgRec = sm.recommends.length
+              ? sm.recommends.reduce((a: number, b: number) => a + b, 0) / sm.recommends.length
+              : null
+            return {
+              title: c.title,
+              avgRating: avgR,
+              avgRecommend: avgRec,
+              wtrCount: wtrMap.get(c.id) ?? 0,
+              isCurrent: c.id === campaignId,
+            }
+          })
+
+          setGenreStats(stats)
+        }
+      }
     }
 
     init()
@@ -433,52 +525,94 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
         </div>
 
         {/* 하이라이트 섹션 */}
-        <div style={{ marginBottom: '28px' }}>
-          <h2 style={sectionTitleStyle}>인상적인 문장 (추천 문구 후보)</h2>
-          {highlights.length === 0 ? (
-            <div
-              style={{
-                ...styles.card,
-                padding: '40px 20px',
-                textAlign: 'center',
-                color: colors.subText,
-                fontSize: '15px',
-              }}
-            >
-              아직 하이라이트가 없습니다
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {highlights.map((hl, idx) => (
-                <div key={idx} style={{ ...styles.card, padding: '20px' }}>
-                  <div
-                    style={{
-                      borderLeft: `3px solid ${colors.primary}`,
-                      paddingLeft: '16px',
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: '15px',
-                        color: colors.text,
-                        lineHeight: 1.7,
-                        fontStyle: 'italic',
-                      }}
-                    >
-                      {hl.text}
-                    </p>
-                    {hl.chapter_label && (
-                      <p style={{ margin: '6px 0 0', fontSize: '13px', color: colors.subText2 }}>
-                        {hl.chapter_label}
-                      </p>
-                    )}
-                  </div>
+        {(() => {
+          // 같은 문장을 표시한 리뷰어 수 집계 (campaign_reviewer_id 기준)
+          const textCountMap = new Map<string, Set<string>>()
+          for (const hl of highlights) {
+            if (!textCountMap.has(hl.text)) {
+              textCountMap.set(hl.text, new Set())
+            }
+            const reviewerId = hl.campaign_reviewer_id ?? `anon-${hl.created_at}`
+            textCountMap.get(hl.text)!.add(reviewerId)
+          }
+
+          // 중복 제거: 같은 텍스트는 한 번만 보여주되, 카운트 정보 유지
+          // 먼저 나온 것(created_at 오름차순) 기준으로 대표 항목 선정
+          const seen = new Set<string>()
+          const deduped: Array<Highlight & { count: number }> = []
+          for (const hl of highlights) {
+            if (!seen.has(hl.text)) {
+              seen.add(hl.text)
+              deduped.push({ ...hl, count: textCountMap.get(hl.text)!.size })
+            }
+          }
+
+          return (
+            <div style={{ marginBottom: '28px' }}>
+              <h2 style={sectionTitleStyle}>인상적인 문장 (추천 문구 후보)</h2>
+              {deduped.length === 0 ? (
+                <div
+                  style={{
+                    ...styles.card,
+                    padding: '40px 20px',
+                    textAlign: 'center',
+                    color: colors.subText,
+                    fontSize: '15px',
+                  }}
+                >
+                  아직 하이라이트가 없습니다
                 </div>
-              ))}
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {deduped.map((hl, idx) => (
+                    <div key={idx} style={{ ...styles.card, padding: '20px' }}>
+                      <div
+                        style={{
+                          borderLeft: `3px solid ${hl.count >= 2 ? colors.warning : colors.primary}`,
+                          paddingLeft: '16px',
+                        }}
+                      >
+                        {/* 2명 이상이 표시한 문장이면 빈도 뱃지 표시 */}
+                        {hl.count >= 2 && (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              background: '#FEF3C7',
+                              color: colors.warning,
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              padding: '2px 10px',
+                              borderRadius: '12px',
+                              marginBottom: '8px',
+                            }}
+                          >
+                            {hl.count}명이 표시
+                          </span>
+                        )}
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: '15px',
+                            color: colors.text,
+                            lineHeight: 1.7,
+                            fontStyle: 'italic',
+                          }}
+                        >
+                          {hl.text}
+                        </p>
+                        {hl.chapter_label && (
+                          <p style={{ margin: '6px 0 0', fontSize: '13px', color: colors.subText2 }}>
+                            {hl.chapter_label}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          )
+        })()}
 
         {/* 타깃 독자 섹션 (응답 있을 때만 표시) — 태그 형태로 가로 나열 */}
         {targetReaders.length > 0 && (
@@ -506,6 +640,145 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
           </div>
         )}
 
+        {/* 열람 현황 섹션 */}
+        <div style={{ marginBottom: '28px' }}>
+          <h2 style={sectionTitleStyle}>열람 현황</h2>
+
+          {readingSessions.length === 0 ? (
+            // 기록 없을 때
+            <div style={{ ...styles.card, padding: '40px 20px', textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: '14px', color: colors.subText2 }}>
+                아직 열람 기록이 없습니다
+              </p>
+            </div>
+          ) : (() => {
+            // ── 챕터별 합산 체류 시간 계산 ──────────────
+            // chapter_index 기준으로 그룹핑
+            const chapterMap = new Map<number, { label: string; total: number }>()
+            for (const s of readingSessions) {
+              const existing = chapterMap.get(s.chapter_index)
+              if (existing) {
+                existing.total += s.duration_seconds
+              } else {
+                chapterMap.set(s.chapter_index, {
+                  label: s.chapter_label ?? `챕터 ${s.chapter_index + 1}`,
+                  total: s.duration_seconds,
+                })
+              }
+            }
+            // 챕터 번호 순서대로 정렬
+            const chapters = Array.from(chapterMap.entries())
+              .sort(([a], [b]) => a - b)
+              .map(([index, { label, total }]) => ({ index, label, total }))
+
+            // 막대 그래프 비율 계산용 최대값
+            const maxDuration = Math.max(...chapters.map((c) => c.total), 1)
+
+            // ── 리뷰어별 마지막 챕터 집계 (이탈 분석) ──────
+            // 각 리뷰어가 읽은 가장 높은 chapter_index
+            const lastChapterByReviewer = new Map<string, number>()
+            for (const s of readingSessions) {
+              const prev = lastChapterByReviewer.get(s.campaign_reviewer_id) ?? -1
+              if (s.chapter_index > prev) {
+                lastChapterByReviewer.set(s.campaign_reviewer_id, s.chapter_index)
+              }
+            }
+            const totalReadCount = lastChapterByReviewer.size
+            const lastChapterIndex = chapters[chapters.length - 1]?.index ?? 0
+            // 끝 챕터까지 읽은 사람 = 마지막 챕터가 최대 인덱스인 리뷰어
+            const completedReadCount = Array.from(lastChapterByReviewer.values())
+              .filter((idx) => idx >= lastChapterIndex).length
+
+            // 가장 많이 이탈한 챕터 = 마지막 챕터 빈도 집계에서 끝 챕터 제외 후 최다
+            const dropoffCount = new Map<number, number>()
+            for (const idx of Array.from(lastChapterByReviewer.values())) {
+              if (idx < lastChapterIndex) {
+                dropoffCount.set(idx, (dropoffCount.get(idx) ?? 0) + 1)
+              }
+            }
+            let avgDropoffLabel = ''
+            if (dropoffCount.size > 0) {
+              const [topDropIdx] = Array.from(dropoffCount.entries())
+                .sort(([, a], [, b]) => b - a)[0]
+              avgDropoffLabel = chapterMap.get(topDropIdx)?.label ?? `챕터 ${topDropIdx + 1}`
+            }
+
+            // 초를 "N초" / "N분 N초" / "N시간 N분" 형태로 변환
+            const formatDuration = (sec: number): string => {
+              if (sec < 60)   return `${sec}초`
+              if (sec < 3600) return `${Math.floor(sec / 60)}분 ${sec % 60}초`
+              return `${Math.floor(sec / 3600)}시간 ${Math.floor((sec % 3600) / 60)}분`
+            }
+
+            return (
+              <div style={{ ...styles.card, padding: '24px' }}>
+
+                {/* 이탈 요약 */}
+                <div style={{
+                  display: 'flex', gap: '24px', flexWrap: 'wrap',
+                  marginBottom: '20px',
+                  paddingBottom: '16px',
+                  borderBottom: `1px solid ${colors.border}`,
+                }}>
+                  <p style={{ margin: 0, fontSize: '14px', color: colors.subText }}>
+                    완독 리뷰어:{' '}
+                    <span style={{ fontWeight: 600, color: colors.titleText }}>
+                      {completedReadCount} / {totalReadCount}명
+                    </span>
+                  </p>
+                  {avgDropoffLabel && (
+                    <p style={{ margin: 0, fontSize: '14px', color: colors.subText }}>
+                      주요 이탈 구간:{' '}
+                      <span style={{ fontWeight: 600, color: colors.titleText }}>
+                        {avgDropoffLabel}
+                      </span>
+                    </p>
+                  )}
+                </div>
+
+                {/* 챕터별 막대 그래프 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {chapters.map((ch) => (
+                    <div key={ch.index} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      {/* 챕터 이름 */}
+                      <div style={{
+                        width: '120px', flexShrink: 0,
+                        fontSize: '14px', color: colors.text,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {ch.label}
+                      </div>
+
+                      {/* 막대 배경 */}
+                      <div style={{
+                        flex: 1, height: '24px',
+                        background: colors.subBackground, borderRadius: '4px',
+                        position: 'relative', overflow: 'hidden',
+                      }}>
+                        {/* 채워진 막대 */}
+                        <div style={{
+                          position: 'absolute', left: 0, top: 0, bottom: 0,
+                          width: `${(ch.total / maxDuration) * 100}%`,
+                          background: colors.primary, borderRadius: '4px',
+                          transition: 'width 0.4s ease',
+                        }} />
+                      </div>
+
+                      {/* 시간 텍스트 */}
+                      <div style={{
+                        width: '60px', flexShrink: 0, textAlign: 'right',
+                        fontSize: '13px', color: colors.subText,
+                      }}>
+                        {formatDuration(ch.total)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+
         {/* 사전 수요 섹션 */}
         <div style={{ marginBottom: '28px' }}>
           <h2 style={sectionTitleStyle}>사전 수요</h2>
@@ -521,6 +794,164 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
             </div>
           </div>
         </div>
+
+        {/* 장르 비교 섹션 — 같은 장르 캠페인이 2개 이상일 때만 표시 */}
+        {genreStats.length >= 2 && (() => {
+          // 비교 항목별 최대값 계산 (막대 너비 기준)
+          const maxRating    = Math.max(...genreStats.map((g) => g.avgRating    ?? 0), 0.1)
+          const maxRecommend = Math.max(...genreStats.map((g) => g.avgRecommend ?? 0), 0.1)
+          const maxWtr       = Math.max(...genreStats.map((g) => g.wtrCount),           1)
+
+          // 비교 막대 하나를 그리는 내부 함수
+          const Bar = ({
+            value,
+            max,
+            highlight,
+            label,
+          }: {
+            value: number | null
+            max: number
+            highlight: boolean
+            label: string
+          }) => (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+              <div style={{ width: '100px', fontSize: '13px', color: colors.subText, flexShrink: 0 }}>
+                {label}
+              </div>
+              <div style={{
+                flex: 1, height: '20px',
+                background: colors.subBackground, borderRadius: '4px',
+                position: 'relative', overflow: 'hidden',
+              }}>
+                {value !== null && (
+                  <div style={{
+                    position: 'absolute', left: 0, top: 0, bottom: 0,
+                    width: `${(value / max) * 100}%`,
+                    background: highlight ? colors.primary : colors.border,
+                    borderRadius: '4px',
+                    transition: 'width 0.4s ease',
+                  }} />
+                )}
+              </div>
+              <div style={{
+                width: '40px', flexShrink: 0, textAlign: 'right',
+                fontSize: '13px',
+                fontWeight: highlight ? 600 : 400,
+                color: highlight ? colors.titleText : colors.subText,
+              }}>
+                {value !== null ? value.toFixed(1) : '—'}
+              </div>
+            </div>
+          )
+
+          return (
+            <div style={{ marginBottom: '28px' }}>
+              <h2 style={sectionTitleStyle}>장르 비교</h2>
+              <div style={{ ...styles.card, padding: '24px' }}>
+                {/* 비교 지표 범례 */}
+                <div style={{
+                  display: 'flex', gap: '16px', marginBottom: '20px',
+                  paddingBottom: '16px', borderBottom: `1px solid ${colors.border}`,
+                  fontSize: '12px', color: colors.subText2,
+                }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{
+                      display: 'inline-block', width: '12px', height: '12px',
+                      background: colors.primary, borderRadius: '2px',
+                    }} />
+                    현재 캠페인
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{
+                      display: 'inline-block', width: '12px', height: '12px',
+                      background: colors.border, borderRadius: '2px',
+                    }} />
+                    같은 장르 다른 캠페인
+                  </span>
+                </div>
+
+                {/* 캠페인별 비교 */}
+                {genreStats.map((g, idx) => (
+                  <div key={idx} style={{ marginBottom: idx < genreStats.length - 1 ? '20px' : 0 }}>
+                    {/* 캠페인 제목 */}
+                    <p style={{
+                      margin: '0 0 10px',
+                      fontSize: '14px',
+                      fontWeight: g.isCurrent ? 600 : 400,
+                      color: g.isCurrent ? colors.titleText : colors.subText,
+                    }}>
+                      {g.title}
+                      {g.isCurrent && (
+                        <span style={{
+                          marginLeft: '8px',
+                          background: colors.primary,
+                          color: '#FFFFFF',
+                          fontSize: '11px',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                        }}>
+                          현재
+                        </span>
+                      )}
+                    </p>
+
+                    {/* 평균 별점 */}
+                    <Bar
+                      value={g.avgRating}
+                      max={maxRating}
+                      highlight={g.isCurrent}
+                      label="평균 별점"
+                    />
+
+                    {/* 추천 의향 */}
+                    <Bar
+                      value={g.avgRecommend}
+                      max={maxRecommend}
+                      highlight={g.isCurrent}
+                      label="추천 의향"
+                    />
+
+                    {/* 읽고 싶다 수 */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '100px', fontSize: '13px', color: colors.subText, flexShrink: 0 }}>
+                        읽고 싶다
+                      </div>
+                      <div style={{
+                        flex: 1, height: '20px',
+                        background: colors.subBackground, borderRadius: '4px',
+                        position: 'relative', overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          position: 'absolute', left: 0, top: 0, bottom: 0,
+                          width: `${(g.wtrCount / maxWtr) * 100}%`,
+                          background: g.isCurrent ? colors.primary : colors.border,
+                          borderRadius: '4px',
+                          transition: 'width 0.4s ease',
+                        }} />
+                      </div>
+                      <div style={{
+                        width: '40px', flexShrink: 0, textAlign: 'right',
+                        fontSize: '13px',
+                        fontWeight: g.isCurrent ? 600 : 400,
+                        color: g.isCurrent ? colors.titleText : colors.subText,
+                      }}>
+                        {g.wtrCount}명
+                      </div>
+                    </div>
+
+                    {/* 구분선 (마지막 항목 제외) */}
+                    {idx < genreStats.length - 1 && (
+                      <div style={{
+                        height: '1px', background: colors.border,
+                        margin: '16px 0 0',
+                      }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

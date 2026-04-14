@@ -96,6 +96,14 @@ function ViewerPageInner() {
   const viewerRef = useRef<HTMLDivElement>(null)
   const viewerOpenedAtRef = useRef<string>('')
 
+  // ── 열람 기록 수집용 ref ───────────────────────────
+  // ref 사용 이유: 이벤트 핸들러(relocated, beforeunload)가 클로저로 캡처하기 때문
+  const campaignReviewerIdRef = useRef<string>('')  // 열람 기록 API에 필요한 식별자
+  const campaignIdRef         = useRef<string>('')  // 열람 기록 API에 필요한 캠페인 ID
+  const tocRef                = useRef<{ label: string; href: string }[]>([]) // 목차 배열
+  const chapterStartTimeRef   = useRef<number>(0)   // 현재 챕터 시작 시각 (ms)
+  const currentChapterRef     = useRef<{ index: number; label: string }>({ index: -1, label: '' })
+
   // ── 하이라이트 상태 ────────────────────────────
   const [highlightPopup, setHighlightPopup] = useState<HighlightPopup | null>(null)
   const [highlights, setHighlights] = useState<HighlightItem[]>([])
@@ -163,6 +171,9 @@ function ViewerPageInner() {
 
       setCampaignTitle(data.campaignTitle)
       setReviewerEmail(data.reviewerEmail ?? '')
+      // 열람 기록 수집을 위한 식별자 저장
+      if (data.campaignReviewerId) campaignReviewerIdRef.current = data.campaignReviewerId
+      if (data.campaignId)         campaignIdRef.current         = data.campaignId
       setStep(data.isVerified ? 'viewer' : 'verify-email')
     }
 
@@ -240,14 +251,82 @@ function ViewerPageInner() {
         book.locations.generate(1024).then(() => setTotalPages(book.locations.length()))
       })
 
+      // 목차 로드 (챕터 번호/이름 매핑용)
+      book.loaded.navigation.then((nav: any) => {
+        tocRef.current = (nav.toc ?? []).map((item: any) => ({
+          label: (item.label ?? '').trim(),
+          href:  item.href ?? '',
+        }))
+      })
+
+      // 챕터 체류 시간을 API로 전송하는 함수
+      const sendDuration = (chapterIndex: number, chapterLabel: string, durationSeconds: number) => {
+        if (!campaignReviewerIdRef.current || durationSeconds < 3) return
+        const payload = JSON.stringify({
+          campaignReviewerId: campaignReviewerIdRef.current,
+          campaignId:         campaignIdRef.current,
+          chapterIndex,
+          chapterLabel,
+          durationSeconds,
+        })
+        // sendBeacon: 페이지를 떠날 때도 전송이 보장됨
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/api/reading-session', new Blob([payload], { type: 'application/json' }))
+        } else {
+          // sendBeacon 미지원 환경(구형 브라우저) 대비 fallback
+          fetch('/api/reading-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true,
+          }).catch(() => {})
+        }
+      }
+
       rendition.on('relocated', (location: any) => {
+        // 진행률 + 버튼 상태 업데이트
         if (book.locations.length() > 0) {
           const pct = book.locations.percentageFromCfi(location.start.cfi)
           setProgress(Math.round(pct * 100))
         }
         setAtStart(location.atStart)
         setAtEnd(location.atEnd)
+
+        // ── 챕터 변경 감지 및 체류 시간 기록 ──────────
+        const currentHref  = location.start.href ?? ''
+        const toc          = tocRef.current
+        // href 일부 일치로 챕터 인덱스 찾기
+        const newIndex = toc.findIndex((item) =>
+          currentHref.includes(item.href) || item.href.includes(currentHref)
+        )
+        const newLabel = newIndex >= 0 ? toc[newIndex].label : `챕터 ${newIndex + 1}`
+
+        const prev = currentChapterRef.current
+        const now  = Date.now()
+
+        if (prev.index >= 0 && chapterStartTimeRef.current > 0) {
+          // 이전 챕터의 체류 시간 전송 (초 단위, 소수점 버림)
+          const elapsed = Math.floor((now - chapterStartTimeRef.current) / 1000)
+          sendDuration(prev.index, prev.label, elapsed)
+        }
+
+        // 새 챕터 시작 시각 기록
+        currentChapterRef.current = { index: newIndex, label: newLabel }
+        chapterStartTimeRef.current = now
       })
+
+      // 뷰어를 떠날 때 현재 챕터 체류 시간 전송
+      const handleBeforeUnload = () => {
+        const cur = currentChapterRef.current
+        if (cur.index < 0 || chapterStartTimeRef.current === 0) return
+        const elapsed = Math.floor((Date.now() - chapterStartTimeRef.current) / 1000)
+        sendDuration(cur.index, cur.label, elapsed)
+        // 다음 진입 때 중복 방지를 위해 초기화
+        chapterStartTimeRef.current = 0
+      }
+      window.addEventListener('beforeunload', handleBeforeUnload)
+      // cleanup에서 제거할 수 있도록 저장
+      ;(rendition as any).__handleBeforeUnload = handleBeforeUnload
 
       await rendition.display()
       setEpubLoading(false)
@@ -281,7 +360,13 @@ function ViewerPageInner() {
 
     loadEpub()
     return () => {
-      if (renditionRef.current) { renditionRef.current.destroy(); renditionRef.current = null }
+      if (renditionRef.current) {
+        // beforeunload 리스너 정리
+        const fn = (renditionRef.current as any).__handleBeforeUnload
+        if (fn) window.removeEventListener('beforeunload', fn)
+        renditionRef.current.destroy()
+        renditionRef.current = null
+      }
     }
   }, [step, token])
 

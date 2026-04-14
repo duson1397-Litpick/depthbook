@@ -103,5 +103,8 @@ export async function POST(request: NextRequest) {
     campaignStatus: campaign.status,
     isVerified: !!reviewer.token_verified_at,
     reviewerEmail: profile?.email ?? '',
+    // 열람 기록 수집에 필요한 식별자
+    campaignReviewerId: reviewer.id,
+    campaignId: campaign.id,
   })
 }

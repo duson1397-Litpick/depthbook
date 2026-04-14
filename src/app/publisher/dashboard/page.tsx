@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import { PLANS, formatPrice } from '@/lib/plans'
 import Logo from '@/components/Logo'
+import Input from '@/components/Input'
 
 // 캠페인 상태 종류
 type CampaignStatus = 'draft' | 'recruiting' | 'active' | 'completed'
@@ -73,6 +74,21 @@ export default function PublisherDashboardPage() {
   // 결제 이력 목록
   const [payments, setPayments] = useState<any[]>([])
 
+  // 현재 로그인한 유저 id (편집 저장 시 사용)
+  const [userId, setUserId] = useState('')
+
+  // ── 출판사 프로필 편집 모달 상태 ────────────────
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editCompanyName, setEditCompanyName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
+  const [editWebsite, setEditWebsite] = useState('')
+  const [editBusinessNumber, setEditBusinessNumber] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  // 원본 출판사 데이터 보관 (모달 열 때 미리 채움용)
+  const [publisherPhone, setPublisherPhone] = useState('')
+  const [publisherWebsite, setPublisherWebsite] = useState('')
+  const [publisherBusinessNumber, setPublisherBusinessNumber] = useState('')
+
   useEffect(() => {
     const init = async () => {
       // 로그인 상태 확인
@@ -83,15 +99,19 @@ export default function PublisherDashboardPage() {
       }
 
       setAuthChecking(false)
+      setUserId(user.id)
 
-      // 출판사 이름 가져오기
+      // 출판사 정보 가져오기 (이름 + 연락처 등)
       const { data: publisher } = await supabase
         .from('publishers')
-        .select('company_name')
+        .select('company_name, contact_phone, website, business_number')
         .eq('id', user.id)
         .single()
 
       setDisplayName(publisher?.company_name || user.email || '')
+      setPublisherPhone(publisher?.contact_phone ?? '')
+      setPublisherWebsite(publisher?.website ?? '')
+      setPublisherBusinessNumber(publisher?.business_number ?? '')
 
       // 캠페인 목록 가져오기
       const { data: campaignList } = await supabase
@@ -135,6 +155,40 @@ export default function PublisherDashboardPage() {
     init()
   }, [])
 
+  // 출판사 프로필 편집 모달 열기
+  const handleOpenEdit = () => {
+    setEditCompanyName(displayName)
+    setEditPhone(publisherPhone)
+    setEditWebsite(publisherWebsite)
+    setEditBusinessNumber(publisherBusinessNumber)
+    setShowEditModal(true)
+  }
+
+  // 출판사 프로필 저장
+  const handleSavePublisher = async () => {
+    if (!userId || editSaving) return
+    setEditSaving(true)
+
+    await supabase
+      .from('publishers')
+      .update({
+        company_name:     editCompanyName.trim() || displayName,
+        contact_phone:    editPhone.trim() || null,
+        website:          editWebsite.trim() || null,
+        business_number:  editBusinessNumber.trim() || null,
+      })
+      .eq('id', userId)
+
+    // 로컬 상태 반영
+    setDisplayName(editCompanyName.trim() || displayName)
+    setPublisherPhone(editPhone.trim())
+    setPublisherWebsite(editWebsite.trim())
+    setPublisherBusinessNumber(editBusinessNumber.trim())
+
+    setEditSaving(false)
+    setShowEditModal(false)
+  }
+
   // 로그아웃 처리
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -161,6 +215,7 @@ export default function PublisherDashboardPage() {
   }
 
   return (
+    <>
     <div
       style={{
         minHeight: '100vh',
@@ -205,16 +260,27 @@ export default function PublisherDashboardPage() {
 
         {/* 환영 문구 */}
         <div style={{ marginBottom: '24px' }}>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '24px',
-              fontWeight: 700,
-              color: colors.titleText,
-            }}
-          >
-            안녕하세요, {displayName}님
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: '24px',
+                fontWeight: 700,
+                color: colors.titleText,
+              }}
+            >
+              안녕하세요, {displayName}님
+            </h1>
+            <button
+              onClick={handleOpenEdit}
+              style={{
+                background: 'none', border: 'none', padding: 0,
+                fontSize: '14px', color: colors.primary, cursor: 'pointer',
+              }}
+            >
+              편집
+            </button>
+          </div>
           <p
             style={{
               margin: '8px 0 0',
@@ -452,5 +518,86 @@ export default function PublisherDashboardPage() {
         </div>
       </div>
     </div>
+
+    {/* 출판사 프로필 편집 모달 */}
+    {showEditModal && (
+      <div
+        onClick={(e) => { if (e.target === e.currentTarget) setShowEditModal(false) }}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '20px',
+        }}
+      >
+        <div style={{
+          width: '100%', maxWidth: '480px',
+          ...styles.card, padding: '32px',
+          boxSizing: 'border-box', position: 'relative',
+        }}>
+          {/* 모달 헤더 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <p style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: colors.titleText }}>
+              프로필 편집
+            </p>
+            <button
+              onClick={() => setShowEditModal(false)}
+              style={{ background: 'none', border: 'none', fontSize: '18px', color: colors.subText, cursor: 'pointer', padding: 0, lineHeight: 1 }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* 출판사명 */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: colors.text, marginBottom: '6px' }}>
+              출판사명
+            </label>
+            <Input value={editCompanyName} onChange={(e) => setEditCompanyName(e.target.value)} placeholder="출판사명" />
+          </div>
+
+          {/* 연락처 */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: colors.text, marginBottom: '6px' }}>
+              연락처
+            </label>
+            <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="연락처" />
+          </div>
+
+          {/* 웹사이트 */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: colors.text, marginBottom: '6px' }}>
+              웹사이트
+            </label>
+            <Input value={editWebsite} onChange={(e) => setEditWebsite(e.target.value)} placeholder="https://" />
+          </div>
+
+          {/* 사업자등록번호 */}
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: colors.text, marginBottom: '6px' }}>
+              사업자등록번호
+            </label>
+            <Input value={editBusinessNumber} onChange={(e) => setEditBusinessNumber(e.target.value)} placeholder="000-00-00000" />
+          </div>
+
+          {/* 저장 버튼 */}
+          <button
+            onClick={handleSavePublisher}
+            disabled={editSaving}
+            style={{
+              width: '100%', height: '48px', borderRadius: '12px',
+              background: editSaving ? colors.subBackground : colors.primary,
+              color: editSaving ? colors.subText : '#FFFFFF',
+              border: 'none', fontSize: '15px', fontWeight: 600,
+              cursor: editSaving ? 'not-allowed' : 'pointer',
+              transition: 'background 0.15s',
+            }}
+          >
+            {editSaving ? '저장 중...' : '저장하기'}
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

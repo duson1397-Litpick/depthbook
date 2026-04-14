@@ -7,6 +7,11 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import Input from '@/components/Input'
+import Textarea from '@/components/Textarea'
+
+// 선호 장르 선택 목록
+const GENRE_OPTIONS = ['소설', '에세이', '인문', '자기계발', '경영', '과학', '시', '기타']
 
 // 등급별 표시 텍스트
 const GRADE_LABELS: Record<string, string> = {
@@ -87,6 +92,14 @@ export default function ReviewerProfilePage({ params }: { params: { id: string }
 
   // 뒤로가기 버튼 호버 상태
   const [backHover, setBackHover] = useState(false)
+
+  // ── 프로필 편집 모달 상태 ────────────────────────
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editBio, setEditBio] = useState('')
+  const [editGenres, setEditGenres] = useState<string[]>([])
+  const [editIsPublic, setEditIsPublic] = useState(true)
+  const [editSaving, setEditSaving] = useState(false)
 
   // ── 페이지 데이터 로드 ──────────────────────────
   useEffect(() => {
@@ -179,6 +192,48 @@ export default function ReviewerProfilePage({ params }: { params: { id: string }
     init()
   }, [reviewerId])
 
+  // ── 프로필 편집 모달 열기 ─────────────────────
+  const handleOpenEdit = () => {
+    setEditName(name)
+    setEditBio(bio ?? '')
+    setEditGenres([...preferredGenres])
+    setEditIsPublic(isPublic)
+    setShowEditModal(true)
+  }
+
+  // ── 프로필 저장 ────────────────────────────────
+  const handleSaveProfile = async () => {
+    if (!currentUserId || editSaving) return
+    setEditSaving(true)
+
+    const trimmedName = editName.trim()
+
+    // profiles 테이블 이름 업데이트
+    await supabase
+      .from('profiles')
+      .update({ name: trimmedName || name })
+      .eq('id', currentUserId)
+
+    // reviewer_profiles 테이블 업데이트 (없으면 생성)
+    await supabase
+      .from('reviewer_profiles')
+      .upsert({
+        id: currentUserId,
+        bio: editBio.trim() || null,
+        preferred_genres: editGenres,
+        is_public: editIsPublic,
+      }, { onConflict: 'id' })
+
+    // 로컬 상태에 즉시 반영
+    if (trimmedName) setName(trimmedName)
+    setBio(editBio.trim() || null)
+    setPreferredGenres(editGenres)
+    setIsPublic(editIsPublic)
+
+    setEditSaving(false)
+    setShowEditModal(false)
+  }
+
   // ── 팔로우 토글 처리 ──────────────────────────
   const handleFollow = async () => {
     if (!currentUserId || followLoading) return
@@ -265,6 +320,7 @@ export default function ReviewerProfilePage({ params }: { params: { id: string }
   const isMyProfile = currentUserId === reviewerId
 
   return (
+    <>
     <div style={{ minHeight: '100vh', background: colors.background }}>
       <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 20px 60px' }}>
 
@@ -293,7 +349,21 @@ export default function ReviewerProfilePage({ params }: { params: { id: string }
         </div>
 
         {/* 프로필 카드 */}
-        <div style={{ ...styles.card, padding: '32px', textAlign: 'center', marginBottom: '24px' }}>
+        <div style={{ ...styles.card, padding: '32px', textAlign: 'center', marginBottom: '24px', position: 'relative' }}>
+
+          {/* 편집 버튼 — 본인 프로필일 때만 표시 */}
+          {isMyProfile && (
+            <button
+              onClick={handleOpenEdit}
+              style={{
+                position: 'absolute', top: '16px', right: '16px',
+                background: 'none', border: 'none', padding: 0,
+                fontSize: '14px', color: colors.primary, cursor: 'pointer',
+              }}
+            >
+              편집
+            </button>
+          )}
 
           {/* 프로필 원형 */}
           <div style={{
@@ -493,5 +563,135 @@ export default function ReviewerProfilePage({ params }: { params: { id: string }
 
       </div>
     </div>
+
+    {/* 프로필 편집 모달 */}
+    {showEditModal && (
+      <div
+        onClick={(e) => { if (e.target === e.currentTarget) setShowEditModal(false) }}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '20px',
+        }}
+      >
+        <div style={{
+          width: '100%', maxWidth: '480px',
+          ...styles.card, padding: '32px',
+          boxSizing: 'border-box', position: 'relative',
+          maxHeight: '90vh', overflowY: 'auto',
+        }}>
+          {/* 모달 헤더 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <p style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: colors.titleText }}>
+              프로필 편집
+            </p>
+            <button
+              onClick={() => setShowEditModal(false)}
+              style={{ background: 'none', border: 'none', fontSize: '18px', color: colors.subText, cursor: 'pointer', padding: 0, lineHeight: 1 }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* 이름 */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: colors.text, marginBottom: '6px' }}>
+              이름
+            </label>
+            <Input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="이름을 입력하세요"
+            />
+          </div>
+
+          {/* 자기소개 */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: colors.text, marginBottom: '6px' }}>
+              자기소개
+            </label>
+            <Textarea
+              value={editBio}
+              onChange={(e) => setEditBio(e.target.value)}
+              placeholder="자기소개를 입력하세요"
+              extraStyle={{ height: '100px' }}
+            />
+          </div>
+
+          {/* 선호 장르 */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: colors.text, marginBottom: '8px' }}>
+              선호 장르
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {GENRE_OPTIONS.map((genre) => {
+                const selected = editGenres.includes(genre)
+                return (
+                  <button
+                    key={genre}
+                    onClick={() => setEditGenres(
+                      selected
+                        ? editGenres.filter((g) => g !== genre)
+                        : [...editGenres, genre]
+                    )}
+                    style={{
+                      padding: '6px 14px', borderRadius: '16px', fontSize: '14px',
+                      cursor: 'pointer', border: 'none', fontWeight: selected ? 600 : 400,
+                      background: selected ? colors.primary : colors.subBackground,
+                      color: selected ? '#FFFFFF' : colors.text,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {genre}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* 프로필 공개 여부 */}
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: colors.text, marginBottom: '8px' }}>
+              프로필 공개 여부
+            </label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {[true, false].map((val) => (
+                <button
+                  key={String(val)}
+                  onClick={() => setEditIsPublic(val)}
+                  style={{
+                    padding: '8px 20px', borderRadius: '8px', fontSize: '14px',
+                    cursor: 'pointer', border: 'none', fontWeight: 500,
+                    background: editIsPublic === val ? colors.primary : colors.subBackground,
+                    color: editIsPublic === val ? '#FFFFFF' : colors.text,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {val ? '공개' : '비공개'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 저장 버튼 */}
+          <button
+            onClick={handleSaveProfile}
+            disabled={editSaving}
+            style={{
+              width: '100%', height: '48px', borderRadius: '12px',
+              background: editSaving ? colors.subBackground : colors.primary,
+              color: editSaving ? colors.subText : '#FFFFFF',
+              border: 'none', fontSize: '15px', fontWeight: 600,
+              cursor: editSaving ? 'not-allowed' : 'pointer',
+              transition: 'background 0.15s',
+            }}
+          >
+            {editSaving ? '저장 중...' : '저장하기'}
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

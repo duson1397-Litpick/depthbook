@@ -2,6 +2,7 @@
 // service_role 키로 RLS 우회
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { recalculateGrade } from '@/lib/grade'
 
 function getServiceClient() {
   return createClient(
@@ -60,10 +61,10 @@ export async function POST(request: NextRequest) {
 
   const supabase = getServiceClient()
 
-  // access_token으로 campaign_reviewer 조회
+  // access_token으로 campaign_reviewer 조회 (reviewer_id 포함)
   const { data: reviewer } = await supabase
     .from('campaign_reviewers')
-    .select('id, campaign_id')
+    .select('id, campaign_id, reviewer_id')
     .eq('access_token', accessToken)
     .single()
 
@@ -106,6 +107,13 @@ export async function POST(request: NextRequest) {
     .from('campaign_reviewers')
     .update({ status: 'completed' })
     .eq('id', reviewer.id)
+
+  // 설문 제출 완료 후 등급 재계산 (실패해도 설문 제출 자체는 성공으로 처리)
+  if (reviewer.reviewer_id) {
+    recalculateGrade(reviewer.reviewer_id).catch((err) => {
+      console.error('등급 재계산 실패:', err)
+    })
+  }
 
   return NextResponse.json({ success: true })
 }
