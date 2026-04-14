@@ -146,7 +146,20 @@ export default function ReviewerProfilePage({ params }: { params: { id: string }
         .eq('reviewer_id', reviewerId)
         .order('created_at', { ascending: false })
 
-      setReviews((reviewData ?? []) as PublicReview[])
+      // Supabase join 결과에서 campaigns가 배열로 오므로 첫 번째 항목만 사용
+      const mapped: PublicReview[] = (reviewData ?? []).map((r: any) => ({
+        id: r.id,
+        title: r.title ?? null,
+        content: r.content,
+        rating: r.rating,
+        like_count: r.like_count ?? 0,
+        comment_count: r.comment_count ?? 0,
+        created_at: r.created_at,
+        campaigns: Array.isArray(r.campaigns)
+          ? (r.campaigns[0] ?? null)
+          : (r.campaigns ?? null),
+      }))
+      setReviews(mapped)
 
       // 로그인 유저의 팔로우 여부 확인
       if (user) {

@@ -2,7 +2,7 @@
 
 // 리뷰어 로그인 / 회원가입 페이지
 // 하나의 카드 안에서 탭으로 전환
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
@@ -16,7 +16,7 @@ interface Message {
   text: string
 }
 
-export default function ReviewerLoginPage() {
+function ReviewerLoginPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -283,5 +283,14 @@ export default function ReviewerLoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// useSearchParams()는 Suspense 경계 안에서만 사용 가능 (Next.js 14 요구사항)
+export default function ReviewerLoginPage() {
+  return (
+    <Suspense>
+      <ReviewerLoginPageInner />
+    </Suspense>
   )
 }

@@ -2,7 +2,7 @@
 
 // 일반 독자 가입 / 로그인 페이지
 // 피드에서 좋아요, 읽고싶다, 팔로우를 하려면 가입 필요
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
@@ -16,7 +16,7 @@ interface Message {
   text: string
 }
 
-export default function ReaderSignupPage() {
+function ReaderSignupPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -321,5 +321,14 @@ export default function ReaderSignupPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// useSearchParams()는 Suspense 경계 안에서만 사용 가능 (Next.js 14 요구사항)
+export default function ReaderSignupPage() {
+  return (
+    <Suspense>
+      <ReaderSignupPageInner />
+    </Suspense>
   )
 }

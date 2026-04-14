@@ -3,7 +3,7 @@
 // 초대 링크 참여 처리 페이지
 // URL: /reviewer/join?invite=xxxx
 // 로그인 확인 → 캠페인 조회 → 참여 처리
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
@@ -24,7 +24,7 @@ interface CampaignInfo {
   sample_ratio: number | null
 }
 
-export default function ReviewerJoinPage() {
+function ReviewerJoinPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const inviteToken = searchParams.get('invite') ?? ''
@@ -311,4 +311,13 @@ export default function ReviewerJoinPage() {
   }
 
   return null
+}
+
+// useSearchParams()는 Suspense 경계 안에서만 사용 가능 (Next.js 14 요구사항)
+export default function ReviewerJoinPage() {
+  return (
+    <Suspense>
+      <ReviewerJoinPageInner />
+    </Suspense>
+  )
 }

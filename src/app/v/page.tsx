@@ -3,7 +3,7 @@
 // 웹뷰어 페이지
 // 토큰 링크 접속 → 이메일 인증 → epub 원고 열람 → 설문 제출
 // 하이라이트 저장 / 워터마크 / 보안 기능 포함
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
@@ -67,7 +67,7 @@ for (let row = -1; row < 7; row++) {
   }
 }
 
-export default function ViewerPage() {
+function ViewerPageInner() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token') ?? ''
 
@@ -1333,5 +1333,14 @@ export default function ViewerPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// useSearchParams()는 Suspense 경계 안에서만 사용 가능 (Next.js 14 요구사항)
+export default function ViewerPage() {
+  return (
+    <Suspense>
+      <ViewerPageInner />
+    </Suspense>
   )
 }
