@@ -196,6 +196,11 @@ function ViewerPageInner() {
   const [publicReviewError, setPublicReviewError] = useState('')
   const [publicReviewLoading, setPublicReviewLoading] = useState(false)
 
+  // ── 샘플 비율 초과 차단 상태 ───────────────────
+  // sampleRatioRef: 이벤트 핸들러 안에서 항상 최신값 참조
+  const [showSampleLimit, setShowSampleLimit] = useState(false)
+  const sampleRatioRef = useRef<number | null>(null)
+
   // ── 보안 상태 ──────────────────────────────────
   const [showDevToolsWarning, setShowDevToolsWarning] = useState(false)
 
@@ -274,6 +279,8 @@ function ViewerPageInner() {
       setReviewerEmail(data.reviewerEmail ?? '')
       if (data.campaignReviewerId) campaignReviewerIdRef.current = data.campaignReviewerId
       if (data.campaignId)         campaignIdRef.current         = data.campaignId
+      // 샘플 비율 저장 (0~1 소수, null이면 완본)
+      sampleRatioRef.current = data.sampleRatio ?? null
       setStep(data.isVerified ? 'viewer' : 'verify-email')
     }
 
@@ -408,6 +415,16 @@ function ViewerPageInner() {
         if (book.locations.length() > 0) {
           const pct = book.locations.percentageFromCfi(location.start.cfi)
           setProgress(Math.round(pct * 100))
+
+          // 샘플 비율 초과 여부 확인
+          // sampleRatioRef가 null이면 완본 플랜이므로 차단 없음
+          if (sampleRatioRef.current !== null) {
+            if (pct >= sampleRatioRef.current) {
+              setShowSampleLimit(true)
+            } else {
+              setShowSampleLimit(false)
+            }
+          }
         }
         setAtStart(location.atStart)
         setAtEnd(location.atEnd)
@@ -1521,6 +1538,42 @@ function ViewerPageInner() {
           )}
 
           <div ref={viewerRef} style={{ width: '100%', height: '100%' }} />
+
+          {/* 샘플 비율 초과 차단 오버레이 */}
+          {showSampleLimit && (
+            <div style={{
+              position: 'absolute', inset: 0, zIndex: 200,
+              background: 'rgba(0,0,0,0.72)',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              padding: '32px', textAlign: 'center',
+            }}>
+              <p style={{
+                margin: 0, fontSize: '20px', fontWeight: 700,
+                color: '#FFFFFF', lineHeight: 1.4,
+              }}>
+                여기까지 미리보기입니다
+              </p>
+              <p style={{
+                margin: '12px 0 0', fontSize: '15px',
+                color: 'rgba(255,255,255,0.72)', lineHeight: 1.6,
+              }}>
+                전체 원고는 완본 캠페인에서 확인할 수 있습니다
+              </p>
+              {/* 이전 페이지 버튼 — prev는 항상 허용 */}
+              <button
+                onClick={() => renditionRef.current?.prev()}
+                style={{
+                  marginTop: '28px', height: '44px', padding: '0 28px',
+                  borderRadius: '10px', background: '#FFFFFF',
+                  color: colors.primary, fontSize: '15px', fontWeight: 600,
+                  border: 'none', cursor: 'pointer',
+                }}
+              >
+                ← 이전 페이지
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 하이라이트 사이드 패널 */}

@@ -32,7 +32,8 @@ export async function POST(request: NextRequest) {
         id,
         title,
         status,
-        epub_storage_path
+        epub_storage_path,
+        sample_ratio
       )
     `)
     .eq('access_token', token)
@@ -106,5 +107,7 @@ export async function POST(request: NextRequest) {
     // 열람 기록 수집에 필요한 식별자
     campaignReviewerId: reviewer.id,
     campaignId: campaign.id,
+    // 샘플 비율 (0~1 사이 소수, null이면 완본)
+    sampleRatio: campaign.sample_ratio ?? null,
   })
 }
