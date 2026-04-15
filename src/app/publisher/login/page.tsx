@@ -38,6 +38,7 @@ export default function PublisherLoginPage() {
 
   // 회원가입 폼 상태
   const [companyName, setCompanyName] = useState('')
+  const [businessNumber, setBusinessNumber] = useState('')
   const [signupEmail, setSignupEmail] = useState('')
   const [signupPassword, setSignupPassword] = useState('')
   const [signupPasswordConfirm, setSignupPasswordConfirm] = useState('')
@@ -111,10 +112,29 @@ export default function PublisherLoginPage() {
     router.push('/publisher/dashboard')
   }
 
+  // 사업자번호 자동 포맷: 숫자만 추출 후 000-00-00000 형식으로
+  const handleBusinessNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+    let formatted = digits
+    if (digits.length > 5) {
+      formatted = `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`
+    } else if (digits.length > 3) {
+      formatted = `${digits.slice(0, 3)}-${digits.slice(3)}`
+    }
+    setBusinessNumber(formatted)
+  }
+
   // 회원가입 처리
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
+
+    // 사업자번호 10자리 확인
+    const bnDigits = businessNumber.replace(/\D/g, '')
+    if (bnDigits.length !== 10) {
+      setMessage({ type: 'error', text: '사업자번호 10자리를 입력해 주세요.' })
+      return
+    }
 
     // 비밀번호 길이 확인
     if (signupPassword.length < 6) {
@@ -143,6 +163,7 @@ export default function PublisherLoginPage() {
         data: {
           role: 'publisher',
           company_name: companyName,
+          business_number: businessNumber.replace(/\D/g, ''),
         },
       },
     })
@@ -406,6 +427,35 @@ export default function PublisherLoginPage() {
                 required
                 style={inputStyle('companyName')}
               />
+              <div>
+                <input
+                  type="text"
+                  placeholder="사업자번호 (000-00-00000)"
+                  value={businessNumber}
+                  onChange={handleBusinessNumberChange}
+                  onFocus={() => setFocusedInput('businessNumber')}
+                  onBlur={() => setFocusedInput(null)}
+                  required
+                  style={inputStyle('businessNumber')}
+                />
+                {/* DB 트리거 필요:
+                  CREATE OR REPLACE FUNCTION handle_new_user()
+                  RETURNS trigger AS $$
+                  BEGIN
+                    IF new.raw_user_meta_data->>'role' = 'publisher' THEN
+                      INSERT INTO publishers (id, company_name, business_number, email)
+                      VALUES (
+                        new.id,
+                        new.raw_user_meta_data->>'company_name',
+                        new.raw_user_meta_data->>'business_number',
+                        new.email
+                      );
+                    END IF;
+                    RETURN new;
+                  END;
+                  $$ LANGUAGE plpgsql SECURITY DEFINER;
+                */}
+              </div>
               <input
                 type="email"
                 placeholder="이메일 주소"

@@ -1,30 +1,35 @@
 'use client'
 
 // 캠페인 생성 페이지
-// 폼 입력 → 결제 확인 → 결제 처리 → 캠페인 생성 완료
+// 플랜 선택 → 폼 입력 → 결제 확인 → 결제 처리 → 완료
+// 오픈 기념 최초 3건은 사업자번호 기준으로 무료 (FREE_CAMPAIGN_LIMIT)
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
-import { PLANS, formatPrice, type PlanType } from '@/lib/plans'
+import { PLANS, formatPrice, FREE_CAMPAIGN_LIMIT, FREE_CAMPAIGN_DURATION, type PlanKey } from '@/lib/plans'
 import Logo from '@/components/Logo'
 
-// 모바일 여부 기준 너비
+// 모바일 기준 너비
 const MOBILE_BP = 768
 
-// 캠페인 유형
-type CampaignType = 'full' | 'sample'
-
 // 화면 단계
-// form: 폼 입력, payment: 결제 확인, complete: 완료
 type Phase = 'form' | 'payment' | 'complete'
 
-// 파일 최대 크기 (50MB)
+// epub 파일 최대 크기 (50MB)
 const MAX_FILE_SIZE = 50 * 1024 * 1024
 
-// NOTE: payments 테이블에 RLS INSERT 정책이 필요합니다.
-// Supabase SQL 편집기에서 아래 정책을 실행하세요:
+// 플랜 카드 표시 순서
+const PLAN_ORDER: PlanKey[] = ['sample_1m', 'sample_2m', 'full_1m', 'full_2m']
+
+// NOTE: campaigns 테이블에 아래 컬럼이 필요합니다.
+// Supabase SQL 편집기에서 실행하세요:
 //
+// ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS plan_type TEXT DEFAULT 'full_1m';
+// ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS is_free BOOLEAN DEFAULT false;
+// ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+//
+// NOTE: payments 테이블에 RLS INSERT 정책이 필요합니다:
 // CREATE POLICY "payments_insert_own" ON payments
 //   FOR INSERT WITH CHECK (publisher_id = auth.uid());
 
@@ -33,12 +38,8 @@ export default function CampaignNewPage() {
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // 화면 단계
   const [phase, setPhase] = useState<Phase>('form')
-
-  // 인증 확인 중 여부
   const [authChecking, setAuthChecking] = useState(true)
-  // 현재 로그인한 유저 id
   const [userId, setUserId] = useState<string>('')
 
   // 원고 정보
@@ -51,10 +52,14 @@ export default function CampaignNewPage() {
   const [epubFile, setEpubFile] = useState<File | null>(null)
 
   // 캠페인 설정
-  const [campaignType, setCampaignType] = useState<CampaignType>('full')
+  const [selectedPlan, setSelectedPlan] = useState<PlanKey>('full_1m')
   const [sampleRatio, setSampleRatio] = useState('')
-  const [maxReviewers, setMaxReviewers] = useState('10')
   const [deadline, setDeadline] = useState('')
+
+  // 무료 캠페인 현황
+  const [freeCampaignsUsed, setFreeCampaignsUsed] = useState(0)
+  const [freeCampaignsRemaining, setFreeCampaignsRemaining] = useState(FREE_CAMPAIGN_LIMIT)
+  const [freeInfoLoaded, setFreeInfoLoaded] = useState(false)
 
   // 폼 제출 / 결제 상태
   const [loading, setLoading] = useState(false)
@@ -63,13 +68,6 @@ export default function CampaignNewPage() {
   // 모바일 여부
   const [isMobile, setIsMobile] = useState(false)
 
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < MOBILE_BP)
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
-
   // 버튼 호버 상태
   const [backHover, setBackHover] = useState(false)
   const [submitHover, setSubmitHover] = useState(false)
@@ -77,6 +75,13 @@ export default function CampaignNewPage() {
   const [fileChangeHover, setFileChangeHover] = useState(false)
   const [payBtnHover, setPayBtnHover] = useState(false)
   const [payBackHover, setPayBackHover] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < MOBILE_BP)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   // 로그인 상태 확인
   useEffect(() => {
@@ -92,26 +97,47 @@ export default function CampaignNewPage() {
     checkAuth()
   }, [])
 
+  // 무료 캠페인 잔여 건수 조회
+  useEffect(() => {
+    if (!userId) return
+    const fetchFreeInfo = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      try {
+        const res = await fetch('/api/free-campaigns', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setFreeCampaignsUsed(data.used)
+          setFreeCampaignsRemaining(data.remaining)
+        }
+      } catch {
+        // 조회 실패 시 잔여 없음으로 처리 (유료로 진행)
+        setFreeCampaignsRemaining(0)
+      }
+      setFreeInfoLoaded(true)
+    }
+    fetchFreeInfo()
+  }, [userId])
+
   // 파일 선택 처리
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     if (file.size > MAX_FILE_SIZE) {
       setErrorMsg('파일 크기는 50MB 이하만 허용됩니다.')
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
-
     setErrorMsg('')
     setEpubFile(file)
   }
 
-  // 폼 유효성 검사 후 결제 화면으로 전환
+  // 폼 유효성 검사 후 결제 화면으로 이동
   const handleFormNext = (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg('')
-
     if (!title.trim()) {
       setErrorMsg('제목을 입력하세요.')
       return
@@ -120,38 +146,45 @@ export default function CampaignNewPage() {
       setErrorMsg('원고 파일을 업로드하세요.')
       return
     }
-
     setPhase('payment')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // 결제 처리 후 캠페인 생성
+  // 결제 처리 및 캠페인 생성
   const handlePayment = async () => {
     setErrorMsg('')
     setLoading(true)
 
     try {
-      // ── 결제 시뮬레이션 ───────────────────────────
-      // 실제 토스페이먼츠 연동 시 이 블록을 교체하면 됩니다.
-      // 토스 위젯 또는 SDK를 여기서 호출하고, 승인 응답을 받아 아래로 이어가세요.
+      // ── 결제 시뮬레이션 ────────────────────────────
+      // 실제 토스페이먼츠 연동 시 이 블록을 교체하세요.
       await new Promise((resolve) => setTimeout(resolve, 1500))
-      // ─────────────────────────────────────────────
+      // ───────────────────────────────────────────────
 
-      const plan: PlanType = campaignType === 'full' ? 'full' : 'sample'
-      const planInfo = PLANS[plan]
+      const isFree = freeCampaignsRemaining > 0
+      const planInfo = PLANS[selectedPlan]
+
+      // 무료 캠페인은 2개월 플랜을 선택해도 1개월만 적용
+      const effectiveDurationDays = isFree ? FREE_CAMPAIGN_DURATION : planInfo.durationDays
+      const amount = isFree ? 0 : planInfo.price
+
       const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
       const campaignId = crypto.randomUUID()
 
-      // 1. payments 테이블에 먼저 저장 (캠페인 id는 생성 후 업데이트)
+      const expiresAt = new Date(
+        Date.now() + effectiveDurationDays * 24 * 60 * 60 * 1000
+      ).toISOString()
+
+      // 1. payments 테이블에 먼저 저장 (campaign_id는 생성 후 업데이트)
       const { error: paymentError } = await supabase
         .from('payments')
         .insert({
           publisher_id: userId,
-          campaign_id: null,           // 캠페인 생성 후 업데이트
-          payment_key: `SIM-${Date.now()}`, // 시뮬레이션 키 (토스 연동 시 실제 키로 교체)
+          campaign_id: null,
+          payment_key: isFree ? `FREE-${Date.now()}` : `SIM-${Date.now()}`,
           order_id: orderId,
-          amount: planInfo.price,
-          plan_type: plan,
+          amount,
+          plan_type: selectedPlan,
           status: 'completed',
           paid_at: new Date().toISOString(),
         })
@@ -174,11 +207,11 @@ export default function CampaignNewPage() {
         return
       }
 
-      // 3. 샘플 비율 계산
-      const sampleRatioValue =
-        campaignType === 'sample' && sampleRatio
-          ? parseFloat(sampleRatio) / 100
-          : null
+      // 3. 샘플 비율 계산 (샘플 플랜일 때만)
+      const isSample = planInfo.type === 'sample'
+      const sampleRatioValue = isSample && sampleRatio
+        ? parseFloat(sampleRatio) / 100
+        : null
 
       // 4. campaigns 테이블에 저장
       const { error: insertError } = await supabase
@@ -192,9 +225,12 @@ export default function CampaignNewPage() {
           description: description.trim(),
           epub_storage_path: filePath,
           sample_ratio: sampleRatioValue,
-          max_reviewers: parseInt(maxReviewers) || 10,
+          max_reviewers: planInfo.maxReviewers,
           deadline: deadline || null,
           status: 'draft',
+          plan_type: selectedPlan,
+          is_free: isFree,
+          expires_at: expiresAt,
         })
 
       if (insertError) {
@@ -216,6 +252,11 @@ export default function CampaignNewPage() {
     }
   }
 
+  // 선택한 플랜이 샘플 계열인지
+  const isSamplePlan = PLANS[selectedPlan].type === 'sample'
+  // 2개월 플랜 여부
+  const is2MonthPlan = selectedPlan === 'sample_2m' || selectedPlan === 'full_2m'
+
   // 공통 인풋 스타일
   const inputStyle: React.CSSProperties = {
     width: '100%',
@@ -230,7 +271,6 @@ export default function CampaignNewPage() {
     boxSizing: 'border-box',
   }
 
-  // 라벨 스타일
   const labelStyle: React.CSSProperties = {
     display: 'block',
     fontSize: '14px',
@@ -239,7 +279,6 @@ export default function CampaignNewPage() {
     marginBottom: '6px',
   }
 
-  // 섹션 제목 스타일
   const sectionTitleStyle: React.CSSProperties = {
     fontSize: '17px',
     fontWeight: 600,
@@ -247,7 +286,6 @@ export default function CampaignNewPage() {
     marginBottom: '16px',
   }
 
-  // 구분선 스타일
   const dividerStyle: React.CSSProperties = {
     height: '1px',
     background: colors.border,
@@ -271,6 +309,7 @@ export default function CampaignNewPage() {
   // 완료 화면
   // ════════════════════════════════════════════════
   if (phase === 'complete') {
+    const isFree = freeCampaignsRemaining > 0
     return (
       <div style={{
         minHeight: '100vh', background: colors.background,
@@ -291,7 +330,9 @@ export default function CampaignNewPage() {
             캠페인이 생성되었습니다
           </p>
           <p style={{ margin: '8px 0 0', fontSize: '15px', color: colors.subText }}>
-            결제가 완료되고 캠페인이 등록되었습니다
+            {isFree
+              ? `무료 캠페인이 등록되었습니다 (잔여 ${freeCampaignsRemaining - 1}건)`
+              : '결제가 완료되고 캠페인이 등록되었습니다'}
           </p>
           <button
             onClick={() => router.push('/publisher/dashboard')}
@@ -314,7 +355,10 @@ export default function CampaignNewPage() {
   // 결제 확인 화면
   // ════════════════════════════════════════════════
   if (phase === 'payment') {
-    const plan = PLANS[campaignType === 'full' ? 'full' : 'sample']
+    const isFree = freeCampaignsRemaining > 0
+    const planInfo = PLANS[selectedPlan]
+    const amount = isFree ? 0 : planInfo.price
+    const effectiveDurationDays = isFree ? FREE_CAMPAIGN_DURATION : planInfo.durationDays
 
     return (
       <div style={{
@@ -331,12 +375,11 @@ export default function CampaignNewPage() {
             <Logo size="medium" />
           </div>
 
-          {/* 제목 */}
           <p style={{
             margin: '0 0 24px', fontSize: '22px', fontWeight: 700,
             color: colors.titleText, textAlign: 'center',
           }}>
-            결제 확인
+            {isFree ? '무료 캠페인 확인' : '결제 확인'}
           </p>
 
           {/* 주문 정보 박스 */}
@@ -344,28 +387,49 @@ export default function CampaignNewPage() {
             background: colors.subBackground, borderRadius: '12px', padding: '20px',
             marginBottom: '24px',
           }}>
-            {/* 캠페인 제목 */}
             <p style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: colors.titleText }}>
               {title.trim()}
             </p>
-            {/* 플랜 이름 */}
-            <p style={{ margin: '6px 0 0', fontSize: '14px', color: colors.subText }}>
-              {plan.name}
+            <p style={{ margin: '4px 0 0', fontSize: '14px', color: colors.subText }}>
+              {planInfo.name}
+              {isFree && is2MonthPlan && ' → 1개월 적용'}
+            </p>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: colors.subText }}>
+              게시 기간: {effectiveDurationDays}일
             </p>
 
-            {/* 구분선 */}
             <div style={{ height: '1px', background: colors.border, margin: '16px 0' }} />
 
-            {/* 결제 금액 */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '14px', color: colors.subText }}>결제 금액</span>
-              <span style={{ fontSize: '24px', fontWeight: 700, color: colors.titleText }}>
-                {formatPrice(plan.price)}
-              </span>
+              <div style={{ textAlign: 'right' }}>
+                {isFree && (
+                  <span style={{
+                    fontSize: '14px', color: colors.subText,
+                    textDecoration: 'line-through', marginRight: '8px',
+                  }}>
+                    {formatPrice(planInfo.price)}
+                  </span>
+                )}
+                <span style={{ fontSize: '24px', fontWeight: 700, color: isFree ? colors.success : colors.titleText }}>
+                  {isFree ? '무료' : formatPrice(amount)}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* 결제하기 버튼 */}
+          {/* 무료 안내 문구 */}
+          {isFree && (
+            <div style={{
+              background: '#EEF2FF', borderRadius: '10px', padding: '12px 16px',
+              marginBottom: '16px', fontSize: '13px', color: '#4B5EAA', lineHeight: 1.5,
+            }}>
+              🎉 오픈 기념 무료 캠페인 {freeCampaignsUsed + 1}/{FREE_CAMPAIGN_LIMIT}건
+              {freeCampaignsRemaining === 1 && ' — 마지막 무료 건입니다'}
+            </div>
+          )}
+
+          {/* 결제 / 등록 버튼 */}
           <button
             onClick={handlePayment}
             disabled={loading}
@@ -373,14 +437,15 @@ export default function CampaignNewPage() {
             onMouseLeave={() => setPayBtnHover(false)}
             style={{
               width: '100%', height: '48px', borderRadius: '12px',
-              background: colors.primary, color: '#FFFFFF',
-              border: 'none', fontSize: '16px', fontWeight: 600,
+              background: isFree ? colors.success : colors.primary,
+              color: '#FFFFFF', border: 'none',
+              fontSize: '16px', fontWeight: 600,
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.6 : payBtnHover ? 0.9 : 1,
               transition: 'opacity 0.15s',
             }}
           >
-            {loading ? '처리 중...' : '결제하기'}
+            {loading ? '처리 중...' : isFree ? '무료로 등록하기' : '결제하기'}
           </button>
 
           {/* 에러 메시지 */}
@@ -401,17 +466,11 @@ export default function CampaignNewPage() {
               onMouseEnter={() => setPayBackHover(true)}
               onMouseLeave={() => setPayBackHover(false)}
               style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                fontSize: '15px',
-                fontWeight: 600,
+                background: 'none', border: 'none', padding: 0,
+                fontSize: '15px', fontWeight: 600,
                 color: payBackHover ? colors.primary : colors.text,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'color 0.15s ease',
+                cursor: 'pointer', display: 'inline-flex',
+                alignItems: 'center', gap: '6px', transition: 'color 0.15s ease',
               }}
             >
               <span style={{ lineHeight: 1 }}>‹</span>
@@ -419,13 +478,15 @@ export default function CampaignNewPage() {
             </button>
           </div>
 
-          {/* 테스트 모드 안내 */}
-          <p style={{
-            margin: '20px 0 0', fontSize: '13px', color: colors.subText2,
-            textAlign: 'center', lineHeight: 1.5,
-          }}>
-            현재는 테스트 모드입니다.<br />실제 결제가 발생하지 않습니다.
-          </p>
+          {/* 테스트 모드 안내 (유료일 때만) */}
+          {!isFree && (
+            <p style={{
+              margin: '20px 0 0', fontSize: '13px', color: colors.subText2,
+              textAlign: 'center', lineHeight: 1.5,
+            }}>
+              현재는 테스트 모드입니다.<br />실제 결제가 발생하지 않습니다.
+            </p>
+          )}
         </div>
       </div>
     )
@@ -448,17 +509,11 @@ export default function CampaignNewPage() {
             onMouseEnter={() => setBackHover(true)}
             onMouseLeave={() => setBackHover(false)}
             style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              fontSize: '15px',
-              fontWeight: 600,
+              background: 'none', border: 'none', padding: 0,
+              fontSize: '15px', fontWeight: 600,
               color: backHover ? colors.primary : colors.text,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'color 0.15s ease',
+              cursor: 'pointer', display: 'inline-flex',
+              alignItems: 'center', gap: '6px', transition: 'color 0.15s ease',
             }}
           >
             <span style={{ lineHeight: 1 }}>‹</span>
@@ -473,35 +528,103 @@ export default function CampaignNewPage() {
             새 캠페인 만들기
           </h1>
           <p style={{ margin: '8px 0 0', fontSize: '15px', color: colors.subText }}>
-            원고 정보와 캠페인 설정을 입력하세요
+            플랜을 선택하고 원고 정보를 입력하세요
           </p>
         </div>
 
-        {/* 플랜 가격 안내 — 모바일에서 세로 배치 */}
+        {/* 오픈 기념 무료 배너 */}
+        {freeInfoLoaded && freeCampaignsRemaining > 0 && (
+          <div style={{
+            background: '#EEF2FF',
+            borderRadius: '12px',
+            padding: '14px 18px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}>
+            <span style={{ fontSize: '20px' }}>🎉</span>
+            <div>
+              <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#3B4FCA' }}>
+                오픈 기념 — 첫 {FREE_CAMPAIGN_LIMIT}건 무료
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#4B5EAA' }}>
+                잔여 {freeCampaignsRemaining}건 · 무료 캠페인은 1개월 게시 기간이 적용됩니다
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 플랜 선택 카드 — 2열 그리드 (모바일 1열) */}
         <div style={{
-          display: 'flex',
-          flexDirection: isMobile ? 'column' : 'row',
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
           gap: '12px',
           marginBottom: '24px',
         }}>
-          {(['full', 'sample'] as PlanType[]).map((key) => {
+          {PLAN_ORDER.map((key) => {
             const p = PLANS[key]
-            const isSelected = (key === 'full') === (campaignType === 'full')
+            const isSelected = selectedPlan === key
+            const isFreeAvailable = freeInfoLoaded && freeCampaignsRemaining > 0
+            const is2m = key === 'sample_2m' || key === 'full_2m'
+
             return (
-              <div key={key} style={{
-                flex: 1, ...styles.card, padding: '16px',
-                border: isSelected ? `2px solid ${colors.primary}` : `1px solid ${colors.border}`,
-                boxSizing: 'border-box',
-              }}>
-                <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: colors.titleText }}>
+              <div
+                key={key}
+                onClick={() => setSelectedPlan(key)}
+                style={{
+                  ...styles.card,
+                  padding: '16px',
+                  border: isSelected ? `2px solid ${colors.primary}` : `1px solid ${colors.border}`,
+                  boxSizing: 'border-box',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.15s',
+                  position: 'relative',
+                }}
+              >
+                {/* 플랜 이름 */}
+                <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: colors.titleText }}>
                   {p.name}
                 </p>
-                <p style={{ margin: '4px 0 0', fontSize: '13px', color: colors.subText }}>
+                {/* 설명 */}
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: colors.subText }}>
                   {p.description}
                 </p>
-                <p style={{ margin: '8px 0 0', fontSize: '15px', fontWeight: 700, color: colors.primary }}>
-                  {p.priceLabel}
-                </p>
+                {/* 가격 */}
+                <div style={{ marginTop: '10px', display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                  {isFreeAvailable ? (
+                    <>
+                      <span style={{ fontSize: '16px', fontWeight: 700, color: colors.success }}>무료</span>
+                      <span style={{ fontSize: '12px', color: colors.subText, textDecoration: 'line-through' }}>
+                        {p.priceLabel}
+                      </span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: '16px', fontWeight: 700, color: colors.primary }}>
+                      {p.priceLabel}
+                    </span>
+                  )}
+                </div>
+                {/* 무료 + 2개월 선택 시 경고 */}
+                {isFreeAvailable && is2m && isSelected && (
+                  <p style={{
+                    margin: '8px 0 0', fontSize: '12px', color: '#B45309',
+                    background: '#FFFBEB', padding: '6px 8px', borderRadius: '6px',
+                  }}>
+                    무료 캠페인은 1개월 게시만 가능합니다
+                  </p>
+                )}
+                {/* 선택 표시 */}
+                {isSelected && (
+                  <div style={{
+                    position: 'absolute', top: '12px', right: '12px',
+                    width: '20px', height: '20px', borderRadius: '50%',
+                    background: colors.primary,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <span style={{ color: '#FFFFFF', fontSize: '12px', fontWeight: 700 }}>✓</span>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -511,7 +634,7 @@ export default function CampaignNewPage() {
         <form onSubmit={handleFormNext}>
           <div style={{ ...styles.card, padding: '32px' }}>
 
-            {/* 원고 정보 섹션 */}
+            {/* 원고 정보 */}
             <p style={sectionTitleStyle}>원고 정보</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -566,7 +689,7 @@ export default function CampaignNewPage() {
 
             <div style={dividerStyle} />
 
-            {/* epub 파일 업로드 섹션 */}
+            {/* epub 파일 업로드 */}
             <p style={sectionTitleStyle}>원고 파일</p>
 
             <input
@@ -628,40 +751,12 @@ export default function CampaignNewPage() {
 
             <div style={dividerStyle} />
 
-            {/* 캠페인 설정 섹션 */}
+            {/* 캠페인 설정 */}
             <p style={sectionTitleStyle}>캠페인 설정</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* 캠페인 유형 */}
-              <div>
-                <label style={labelStyle}>캠페인 유형</label>
-                {/* 모바일에서 세로 배치 */}
-                <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px' }}>
-                  {(['full', 'sample'] as CampaignType[]).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setCampaignType(type)}
-                      style={{
-                        flex: 1, height: '44px', borderRadius: '10px',
-                        border: campaignType === type
-                          ? `2px solid ${colors.primary}`
-                          : `1px solid ${colors.border}`,
-                        background: campaignType === type ? '#F0F4FF' : '#FFFFFF',
-                        color: campaignType === type ? colors.primary : colors.text,
-                        fontSize: '14px', cursor: 'pointer',
-                        fontWeight: campaignType === type ? 600 : 400,
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {type === 'full' ? `완본 (${PLANS.full.priceLabel})` : `샘플 (${PLANS.sample.priceLabel})`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 샘플 비율 */}
-              {campaignType === 'sample' && (
+              {/* 샘플 비율 — 샘플 플랜일 때만 노출 */}
+              {isSamplePlan && (
                 <div>
                   <label style={labelStyle}>샘플 비율 (%)</label>
                   <input
@@ -679,18 +774,14 @@ export default function CampaignNewPage() {
                 </div>
               )}
 
-              {/* 최대 리뷰어 수 */}
-              <div>
-                <label style={labelStyle}>최대 리뷰어 수</label>
-                <input
-                  type="number"
-                  placeholder="10"
-                  min={1}
-                  max={100}
-                  value={maxReviewers}
-                  onChange={(e) => setMaxReviewers(e.target.value)}
-                  style={inputStyle}
-                />
+              {/* 최대 리뷰어 수 — 플랜에 따라 자동 결정됨을 안내 */}
+              <div style={{
+                padding: '12px 14px', borderRadius: '8px',
+                background: colors.subBackground,
+                fontSize: '13px', color: colors.subText,
+              }}>
+                최대 리뷰어: <strong style={{ color: colors.text }}>{PLANS[selectedPlan].maxReviewers}명</strong>
+                {' '}(선택한 플랜 기준)
               </div>
 
               {/* 마감일 */}
@@ -717,7 +808,7 @@ export default function CampaignNewPage() {
             </div>
           )}
 
-          {/* 다음 단계: 결제 확인으로 */}
+          {/* 다음 단계 버튼 */}
           <button
             type="submit"
             onMouseEnter={() => setSubmitHover(true)}
@@ -727,13 +818,11 @@ export default function CampaignNewPage() {
               borderRadius: styles.button.borderRadius,
               background: colors.primary, color: '#FFFFFF',
               fontSize: '16px', fontWeight: 600, border: 'none',
-              cursor: 'pointer',
-              opacity: submitHover ? 0.9 : 1,
-              transition: 'opacity 0.15s',
-              marginTop: '24px',
+              cursor: 'pointer', opacity: submitHover ? 0.9 : 1,
+              transition: 'opacity 0.15s', marginTop: '24px',
             }}
           >
-            다음: 결제 확인 →
+            다음: 확인 →
           </button>
         </form>
       </div>
