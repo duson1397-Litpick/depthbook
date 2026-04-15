@@ -17,6 +17,7 @@ export default function HomePage() {
   const [feedHover, setFeedHover]                 = useState(false)
   const [ctaHover, setCtaHover]                   = useState(false)
   const [reviewerLinkHover, setReviewerLinkHover] = useState(false)
+  const [pricingCtaHover, setPricingCtaHover]     = useState(false)
 
   // 모바일 여부 (768px 미만)
   const [isMobile, setIsMobile] = useState(false)
@@ -324,6 +325,151 @@ export default function HomePage() {
                 </p>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 가격표 섹션 ──────────────────────────── */}
+      <div style={{ background: '#FFFFFF', padding: isMobile ? '60px 20px' : '80px 20px' }}>
+        <div style={{ maxWidth: styles.maxWidth, margin: '0 auto', textAlign: 'center' }}>
+
+          {/* 섹션 제목 */}
+          <h2 style={{
+            margin: 0,
+            fontSize: isMobile ? '22px' : '28px',
+            fontWeight: 700, color: colors.titleText,
+          }}>
+            합리적인 가격
+          </h2>
+          <p style={{ margin: '12px 0 0', fontSize: '16px', color: colors.subText }}>
+            원고에 맞는 플랜을 선택하세요
+          </p>
+
+          {/* 오픈 기념 무료 배너 */}
+          <div style={{
+            marginTop: '48px',
+            background: '#EEF2FF',
+            borderRadius: '12px',
+            padding: '16px',
+            textAlign: 'center',
+          }}>
+            <p style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: colors.primary }}>
+              🎉 오픈 기념 — 첫 3건 무료 (1개월 게시)
+            </p>
+          </div>
+
+          {/* 플랜 카드 2열 — 모바일에서 1열 */}
+          <div style={{
+            marginTop: '32px',
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+            gap: '24px',
+            textAlign: 'left',
+          }}>
+
+            {/* 왼쪽 카드: 초반부 공개 */}
+            <div style={{ ...styles.card, padding: '28px' }}>
+              <p style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: colors.titleText }}>
+                초반부 공개
+              </p>
+              <p style={{
+                margin: '12px 0 0', fontSize: '14px', color: colors.subText, lineHeight: 1.6,
+              }}>
+                원고 앞부분(10~30%)에 대한 첫인상과 기대감을 확인할 수 있습니다
+              </p>
+
+              {/* 구분선 */}
+              <div style={{ height: '1px', background: colors.border, margin: '20px 0' }} />
+
+              {/* 1개월 가격 */}
+              <p style={{ margin: 0, fontSize: '13px', color: colors.subText2 }}>1개월 게시</p>
+              <p style={{ margin: '4px 0 0', fontSize: '15px' }}>
+                <span style={{ textDecoration: 'line-through', color: colors.subText2 }}>99,000원</span>
+                {' → '}
+                <span style={{ fontWeight: 700, color: colors.success }}>무료</span>
+              </p>
+
+              {/* 2개월 가격 */}
+              <p style={{ margin: '12px 0 0', fontSize: '13px', color: colors.subText2 }}>2개월 게시</p>
+              <p style={{ margin: '4px 0 0', fontSize: '15px' }}>
+                <span style={{ textDecoration: 'line-through', color: colors.subText2 }}>149,000원</span>
+                {' → '}
+                <span style={{ fontWeight: 700, color: colors.success }}>무료</span>
+              </p>
+            </div>
+
+            {/* 오른쪽 카드: 완본 공개 + 추천 뱃지 */}
+            <div style={{
+              ...styles.card,
+              padding: '28px',
+              border: `2px solid ${colors.primary}`,
+              position: 'relative',
+            }}>
+              {/* 추천 뱃지 */}
+              <div style={{
+                position: 'absolute', top: '16px', right: '16px',
+                background: colors.primary, color: '#FFFFFF',
+                padding: '4px 12px', borderRadius: '12px',
+                fontSize: '12px', fontWeight: 600,
+              }}>
+                추천
+              </div>
+
+              <p style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: colors.titleText }}>
+                완본 공개
+              </p>
+              <p style={{
+                margin: '12px 0 0', fontSize: '14px', color: colors.subText, lineHeight: 1.6,
+              }}>
+                별점, 이탈 구간, 하이라이트 등 정밀한 데이터를 받을 수 있습니다
+              </p>
+
+              {/* 구분선 */}
+              <div style={{ height: '1px', background: colors.border, margin: '20px 0' }} />
+
+              {/* 1개월 가격 */}
+              <p style={{ margin: 0, fontSize: '13px', color: colors.subText2 }}>1개월 게시</p>
+              <p style={{ margin: '4px 0 0', fontSize: '15px' }}>
+                <span style={{ textDecoration: 'line-through', color: colors.subText2 }}>149,000원</span>
+                {' → '}
+                <span style={{ fontWeight: 700, color: colors.success }}>무료</span>
+              </p>
+
+              {/* 2개월 가격 */}
+              <p style={{ margin: '12px 0 0', fontSize: '13px', color: colors.subText2 }}>2개월 게시</p>
+              <p style={{ margin: '4px 0 0', fontSize: '15px' }}>
+                <span style={{ textDecoration: 'line-through', color: colors.subText2 }}>249,000원</span>
+                {' → '}
+                <span style={{ fontWeight: 700, color: colors.success }}>무료</span>
+              </p>
+            </div>
+          </div>
+
+          {/* 하단 안내 문구 */}
+          <p style={{
+            marginTop: '32px', fontSize: '14px', color: colors.subText, textAlign: 'center',
+          }}>
+            모든 플랜 · 리뷰어 수 제한 없음 · 익명 리포트 자동 생성
+          </p>
+
+          {/* 시작하기 버튼 */}
+          <div style={{ marginTop: '24px' }}>
+            <button
+              onClick={() => router.push('/publisher/login')}
+              onMouseEnter={() => setPricingCtaHover(true)}
+              onMouseLeave={() => setPricingCtaHover(false)}
+              style={{
+                height: '48px', padding: '0 32px',
+                borderRadius: '12px',
+                background: colors.primary, color: '#FFFFFF',
+                fontSize: '16px', fontWeight: 600,
+                border: 'none', cursor: 'pointer',
+                opacity: pricingCtaHover ? 0.88 : 1,
+                transition: 'opacity 0.15s',
+              }}
+            >
+              지금 무료로 시작하기
+            </button>
           </div>
         </div>
       </div>
