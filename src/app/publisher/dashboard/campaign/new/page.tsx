@@ -567,17 +567,21 @@ export default function CampaignNewPage() {
             const isFreeAvailable = freeInfoLoaded && freeCampaignsRemaining > 0
             const is2m = key === 'sample_2m' || key === 'full_2m'
 
+            // 무료 잔여가 있을 때 2개월 카드는 비활성화
+            const isDisabled = isFreeAvailable && is2m
+
             return (
               <div
                 key={key}
-                onClick={() => setSelectedPlan(key)}
+                onClick={() => { if (!isDisabled) setSelectedPlan(key) }}
                 style={{
                   ...styles.card,
                   padding: '16px',
                   border: isSelected ? `2px solid ${colors.primary}` : `1px solid ${colors.border}`,
                   boxSizing: 'border-box',
-                  cursor: 'pointer',
-                  transition: 'border-color 0.15s',
+                  cursor: isDisabled ? 'not-allowed' : 'pointer',
+                  opacity: isDisabled ? 0.5 : 1,
+                  transition: 'border-color 0.15s, opacity 0.15s',
                   position: 'relative',
                 }}
               >
@@ -604,17 +608,16 @@ export default function CampaignNewPage() {
                     </span>
                   )}
                 </div>
-                {/* 무료 + 2개월 선택 시 경고 */}
-                {isFreeAvailable && is2m && isSelected && (
+                {/* 2개월 카드 비활성화 안내 — 무료 잔여 있을 때 항상 표시 */}
+                {isDisabled && (
                   <p style={{
-                    margin: '8px 0 0', fontSize: '12px', color: '#B45309',
-                    background: '#FFFBEB', padding: '6px 8px', borderRadius: '6px',
+                    margin: '8px 0 0', fontSize: '13px', color: colors.subText2,
                   }}>
                     무료 캠페인은 1개월 게시만 가능합니다
                   </p>
                 )}
-                {/* 선택 표시 */}
-                {isSelected && (
+                {/* 선택 표시 — 비활성화 카드는 표시 안 함 */}
+                {isSelected && !isDisabled && (
                   <div style={{
                     position: 'absolute', top: '12px', right: '12px',
                     width: '20px', height: '20px', borderRadius: '50%',
