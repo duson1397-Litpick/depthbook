@@ -1,9 +1,16 @@
+'use client'
+
 // 공통 푸터 컴포넌트
 // 랜딩 페이지와 피드 페이지에서 사용
-// 사업자 정보 + 저작권 표기
+// 사업자 정보 + 약관 링크 + 저작권 표기
+import { useState } from 'react'
+import Link from 'next/link'
 import { logoStyle } from '@/lib/design'
 
 export default function Footer() {
+  // 약관 링크 호버 상태
+  const [hovered, setHovered] = useState<'terms' | 'privacy' | null>(null)
+
   return (
     <footer
       style={{
@@ -57,10 +64,40 @@ export default function Footer() {
           </p>
         </div>
 
+        {/* 약관 링크 */}
+        <div style={{ display: 'flex', gap: '16px', marginTop: '20px' }}>
+          <Link
+            href="/terms"
+            style={{
+              fontSize: '13px',
+              color: hovered === 'terms' ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.45)',
+              textDecoration: 'none',
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={() => setHovered('terms')}
+            onMouseLeave={() => setHovered(null)}
+          >
+            이용약관
+          </Link>
+          <Link
+            href="/privacy"
+            style={{
+              fontSize: '13px',
+              color: hovered === 'privacy' ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.45)',
+              textDecoration: 'none',
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={() => setHovered('privacy')}
+            onMouseLeave={() => setHovered(null)}
+          >
+            개인정보처리방침
+          </Link>
+        </div>
+
         {/* 저작권 표기 */}
         <p
           style={{
-            margin: '20px 0 0',
+            margin: '12px 0 0',
             fontSize: '12px',
             color: 'rgba(255,255,255,0.3)',
           }}

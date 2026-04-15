@@ -5,6 +5,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import Link from 'next/link'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
 
@@ -39,6 +40,9 @@ function ReviewerLoginPageInner() {
   const [signupEmail, setSignupEmail] = useState('')
   const [signupPassword, setSignupPassword] = useState('')
   const [signupPasswordConfirm, setSignupPasswordConfirm] = useState('')
+
+  // 약관 동의 상태
+  const [agreeTerms, setAgreeTerms] = useState(false)
 
   // 비밀번호 재설정 상태
   const [resetEmail, setResetEmail] = useState('')
@@ -118,6 +122,12 @@ function ReviewerLoginPageInner() {
 
     if (signupPassword !== signupPasswordConfirm) {
       setMessage({ type: 'error', text: '비밀번호가 일치하지 않습니다.' })
+      return
+    }
+
+    // 약관 동의 확인
+    if (!agreeTerms) {
+      setMessage({ type: 'error', text: '이용약관 및 개인정보처리방침에 동의해주세요.' })
       return
     }
 
@@ -362,6 +372,32 @@ function ReviewerLoginPageInner() {
                 onChange={(e) => setSignupPasswordConfirm(e.target.value)}
                 onFocus={() => setFocusedInput('signupPasswordConfirm')} onBlur={() => setFocusedInput(null)}
                 required style={inputStyle('signupPasswordConfirm')} />
+
+              {/* 약관 동의 체크박스 */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <div
+                  onClick={() => setAgreeTerms(!agreeTerms)}
+                  style={{
+                    width: '18px', height: '18px', borderRadius: '4px',
+                    flexShrink: 0, marginTop: '1px',
+                    border: agreeTerms ? 'none' : `1px solid ${colors.border}`,
+                    background: agreeTerms ? colors.primary : '#FFFFFF',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', transition: 'background 0.15s',
+                  }}
+                >
+                  {agreeTerms && (
+                    <span style={{ color: '#FFFFFF', fontSize: '12px', fontWeight: 700, lineHeight: 1 }}>✓</span>
+                  )}
+                </div>
+                <span style={{ fontSize: '13px', color: colors.subText, lineHeight: 1.5 }}>
+                  <Link href="/terms" target="_blank" style={{ color: colors.primary, textDecoration: 'underline' }}>이용약관</Link>
+                  {' '}및{' '}
+                  <Link href="/privacy" target="_blank" style={{ color: colors.primary, textDecoration: 'underline' }}>개인정보처리방침</Link>
+                  에 동의합니다
+                </span>
+              </div>
+
               <button type="submit" disabled={loading}
                 onMouseEnter={() => setBtnHover(true)} onMouseLeave={() => setBtnHover(false)}
                 style={buttonStyle}>
