@@ -10,7 +10,7 @@ import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
 
 // 화면 단계
-type Phase = 'loading' | 'error' | 'info' | 'already-joined' | 'done'
+type Phase = 'loading' | 'error' | 'publisher-account' | 'info' | 'already-joined' | 'done'
 
 // 캠페인 정보 형태
 interface CampaignInfo {
@@ -36,6 +36,7 @@ function ReviewerJoinPageInner() {
   const [accessToken, setAccessToken] = useState('')
   const [joining, setJoining] = useState(false)
   const [joinBtnHover, setJoinBtnHover] = useState(false)
+  const [switchBtnHover, setSwitchBtnHover] = useState(false)
 
   useEffect(() => {
     if (!inviteToken) {
@@ -51,6 +52,18 @@ function ReviewerJoinPageInner() {
         // 로그인 후 이 페이지로 돌아오도록 redirect 파라미터 포함
         const redirectPath = `/reviewer/join?invite=${inviteToken}`
         router.push(`/reviewer/login?redirect=${encodeURIComponent(redirectPath)}`)
+        return
+      }
+
+      // 출판사 계정으로 접근한 경우 차단
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+
+      if (profile?.role === 'publisher') {
+        setPhase('publisher-account')
         return
       }
 
@@ -110,6 +123,13 @@ function ReviewerJoinPageInner() {
     setJoining(false)
   }
 
+  // 출판사 계정 → 로그아웃 후 리뷰어 로그인으로 이동
+  const handleSwitchToReviewer = async () => {
+    await supabase.auth.signOut()
+    const currentUrl = `/reviewer/join?invite=${inviteToken}`
+    router.push(`/reviewer/login?redirect=${encodeURIComponent(currentUrl)}`)
+  }
+
   // 카드 공통 래퍼
   const cardWrapper = (children: React.ReactNode) => (
     <div style={{
@@ -131,6 +151,42 @@ function ReviewerJoinPageInner() {
     return cardWrapper(
       <div style={{ textAlign: 'center', color: colors.subText, fontSize: '15px', padding: '20px 0' }}>
         불러오는 중...
+      </div>
+    )
+  }
+
+  // ── 출판사 계정 접근 차단 ─────────────────────────
+  if (phase === 'publisher-account') {
+    return cardWrapper(
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <Logo size="medium" />
+        </div>
+        <p style={{ margin: '0 0 12px', fontSize: '40px' }}>🚫</p>
+        <p style={{
+          margin: '0 0 8px', fontSize: '18px', fontWeight: 700, color: colors.titleText,
+        }}>
+          출판사 계정으로는 리뷰어 참여가 불가합니다
+        </p>
+        <p style={{ margin: '0 0 28px', fontSize: '15px', color: colors.subText, lineHeight: 1.6 }}>
+          리뷰어 계정으로 로그인해주세요
+        </p>
+        <button
+          onClick={handleSwitchToReviewer}
+          onMouseEnter={() => setSwitchBtnHover(true)}
+          onMouseLeave={() => setSwitchBtnHover(false)}
+          style={{
+            width: '100%', height: styles.button.height,
+            borderRadius: styles.button.borderRadius,
+            background: colors.primary, color: '#FFFFFF',
+            fontSize: '15px', fontWeight: 600, border: 'none',
+            cursor: 'pointer',
+            opacity: switchBtnHover ? 0.9 : 1,
+            transition: 'opacity 0.15s',
+          }}
+        >
+          리뷰어 로그인
+        </button>
       </div>
     )
   }

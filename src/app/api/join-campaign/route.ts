@@ -24,6 +24,17 @@ export async function GET(request: NextRequest) {
 
   const supabase = getServiceClient()
 
+  // 리뷰어 계정 여부 확인 — publisher 계정이 접근하면 차단
+  const { data: reviewerProfile } = await supabase
+    .from('reviewer_profiles')
+    .select('id')
+    .eq('id', reviewerId)
+    .single()
+
+  if (!reviewerProfile) {
+    return NextResponse.json({ error: '리뷰어 계정이 아닙니다' }, { status: 400 })
+  }
+
   // invite_token으로 캠페인 조회
   const { data: campaign } = await supabase
     .from('campaigns')
@@ -76,6 +87,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '필수 값이 없습니다' }, { status: 400 })
   }
 
+  const supabase = getServiceClient()
+
+  // 리뷰어 계정 여부 확인 — publisher 계정이 접근하면 차단
+  const { data: reviewerProfile } = await supabase
+    .from('reviewer_profiles')
+    .select('id')
+    .eq('id', reviewerId)
+    .single()
+
+  if (!reviewerProfile) {
+    return NextResponse.json({ error: '리뷰어 계정이 아닙니다' }, { status: 400 })
+  }
+
   // 어느 방식인지 판단
   const isInviteMode = !!inviteToken
   const isApplyMode = !!campaignId
@@ -83,8 +107,6 @@ export async function POST(request: NextRequest) {
   if (!isInviteMode && !isApplyMode) {
     return NextResponse.json({ error: 'inviteToken 또는 campaignId가 필요합니다' }, { status: 400 })
   }
-
-  const supabase = getServiceClient()
 
   // ── 초대 링크 방식 ──────────────────────────────
   if (isInviteMode) {
