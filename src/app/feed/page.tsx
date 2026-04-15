@@ -593,7 +593,7 @@ export default function FeedPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: colors.background }}>
+    <div style={{ flex: 1, background: colors.background, display: 'flex', flexDirection: 'column' }}>
 
       {/* 고정 네비게이션 바 */}
       <div style={{
@@ -753,8 +753,8 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* 피드 본문 */}
-      <div style={{ maxWidth: '720px', margin: '0 auto', padding: isMobile ? '0 16px 60px' : '0 20px 60px' }}>
+      {/* 피드 본문 — flex: 1 로 남은 공간을 채워 푸터를 바닥에 붙임 */}
+      <div style={{ flex: 1, maxWidth: '720px', width: '100%', margin: '0 auto', padding: isMobile ? '0 16px 60px' : '0 20px 60px', boxSizing: 'border-box' }}>
 
         {/* 피드 헤더 */}
         <div style={{ paddingTop: '32px', marginBottom: '20px' }}>

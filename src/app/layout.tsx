@@ -31,7 +31,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ko">
+    // html에 height: 100% 설정 — body의 min-height: 100% 기준점이 됨
+    <html lang="ko" style={{ margin: 0, padding: 0, height: '100%' }}>
       <head>
         {/* 프리텐다드 웹폰트 - 가변 폰트 버전으로 모든 굵기 지원 */}
         <link
@@ -45,12 +46,22 @@ export default function RootLayout({
         style={{
           margin: 0,
           padding: 0,
+          minHeight: '100%',
           fontFamily: styles.fontFamily,
           background: colors.background,
           color: colors.text,
         }}
       >
-        {children}
+        {/* 모든 페이지의 공통 flex 컨테이너 — 푸터를 항상 바닥에 붙이기 위해 */}
+        <div
+          style={{
+            minHeight: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {children}
+        </div>
       </body>
     </html>
   )
