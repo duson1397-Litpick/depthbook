@@ -1,8 +1,9 @@
 'use client'
 
 // 리뷰어 캠페인 탐색 페이지
-// 모집 중인 캠페인 목록을 보고 직접 참여 신청할 수 있는 페이지
+// 비로그인도 목록 열람 가능. 참여 신청 시에만 로그인 필요.
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
@@ -38,10 +39,10 @@ export default function ReviewerCampaignsPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  // 인증 확인 중 여부
+  // 초기 인증 확인 진행 중 여부 (캠페인 목록 로드 시작 전)
   const [authChecking, setAuthChecking] = useState(true)
 
-  // 현재 로그인한 리뷰어 id
+  // 현재 로그인한 리뷰어 id (비로그인이면 빈 문자열)
   const [currentUserId, setCurrentUserId] = useState('')
 
   // 캠페인 목록
@@ -67,27 +68,31 @@ export default function ReviewerCampaignsPage() {
   const [logoutHover, setLogoutHover] = useState(false)
   const [myLinkHover, setMyLinkHover] = useState(false)
 
+  // 로그인 모달 표시 여부 (비로그인 신청 시도 시 열림)
+  const [showLoginModal, setShowLoginModal] = useState(false)
+
   // ── 초기 인증 확인 + 내 참여 목록 로드 ──────────
+  // 비로그인이어도 페이지를 그대로 보여줌 (로그인 강제 없음)
   useEffect(() => {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/reviewer/login?redirect=/reviewer/campaigns')
-        return
+
+      if (user) {
+        setCurrentUserId(user.id)
+
+        // 내가 이미 참여 중인 캠페인 id 목록 조회
+        const { data: participations } = await supabase
+          .from('campaign_reviewers')
+          .select('campaign_id')
+          .eq('reviewer_id', user.id)
+
+        setMyParticipationIds(
+          new Set((participations ?? []).map((p: any) => p.campaign_id as string))
+        )
       }
 
-      setCurrentUserId(user.id)
+      // 로그인 여부와 관계없이 캠페인 목록 로드 시작
       setAuthChecking(false)
-
-      // 내가 이미 참여 중인 캠페인 id 목록 조회
-      const { data: participations } = await supabase
-        .from('campaign_reviewers')
-        .select('campaign_id')
-        .eq('reviewer_id', user.id)
-
-      setMyParticipationIds(
-        new Set((participations ?? []).map((p: any) => p.campaign_id as string))
-      )
     }
 
     init()
@@ -138,7 +143,11 @@ export default function ReviewerCampaignsPage() {
 
   // ── 참여 신청 처리 ────────────────────────────
   const handleApply = async (campaignId: string) => {
-    if (!currentUserId) return
+    // 비로그인 상태이면 로그인 모달 표시
+    if (!currentUserId) {
+      setShowLoginModal(true)
+      return
+    }
 
     // 신청 중 상태로 전환
     setApplyingIds((prev) => {
@@ -179,19 +188,6 @@ export default function ReviewerCampaignsPage() {
     router.push('/reviewer/login')
   }
 
-  // 인증 확인 중 로딩 화면
-  if (authChecking) {
-    return (
-      <div style={{
-        minHeight: '100vh', display: 'flex', alignItems: 'center',
-        justifyContent: 'center', background: colors.background,
-        color: colors.subText, fontSize: '15px',
-      }}>
-        불러오는 중...
-      </div>
-    )
-  }
-
   return (
     <div style={{ minHeight: '100vh', background: colors.background }}>
       {/* 장르 필터 스크롤바 숨기기 (웹킷 브라우저용) */}
@@ -204,36 +200,55 @@ export default function ReviewerCampaignsPage() {
           display: 'flex', justifyContent: 'space-between',
           alignItems: 'center', marginBottom: '32px',
         }}>
-          <Logo size="small" />
+          <Link href="/" style={{ textDecoration: 'none' }}>
+            <Logo size="small" />
+          </Link>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            {/* 내 캠페인 링크 */}
-            <button
-              onClick={() => router.push('/reviewer/my')}
-              onMouseEnter={() => setMyLinkHover(true)}
-              onMouseLeave={() => setMyLinkHover(false)}
-              style={{
-                background: 'none', border: 'none', padding: 0,
-                fontSize: '14px', fontWeight: 500,
-                color: myLinkHover ? colors.primary2 : colors.primary,
-                cursor: 'pointer', transition: 'color 0.15s',
-              }}
-            >
-              내 캠페인
-            </button>
-            {/* 로그아웃 */}
-            <button
-              onClick={handleLogout}
-              onMouseEnter={() => setLogoutHover(true)}
-              onMouseLeave={() => setLogoutHover(false)}
-              style={{
-                background: 'none', border: 'none', padding: 0,
-                fontSize: '14px',
-                color: logoutHover ? colors.text : colors.subText,
-                cursor: 'pointer', transition: 'color 0.15s',
-              }}
-            >
-              로그아웃
-            </button>
+            {currentUserId ? (
+              <>
+                {/* 내 캠페인 링크 */}
+                <button
+                  onClick={() => router.push('/reviewer/my')}
+                  onMouseEnter={() => setMyLinkHover(true)}
+                  onMouseLeave={() => setMyLinkHover(false)}
+                  style={{
+                    background: 'none', border: 'none', padding: 0,
+                    fontSize: '14px', fontWeight: 500,
+                    color: myLinkHover ? colors.primary2 : colors.primary,
+                    cursor: 'pointer', transition: 'color 0.15s',
+                  }}
+                >
+                  내 캠페인
+                </button>
+                {/* 로그아웃 */}
+                <button
+                  onClick={handleLogout}
+                  onMouseEnter={() => setLogoutHover(true)}
+                  onMouseLeave={() => setLogoutHover(false)}
+                  style={{
+                    background: 'none', border: 'none', padding: 0,
+                    fontSize: '14px',
+                    color: logoutHover ? colors.text : colors.subText,
+                    cursor: 'pointer', transition: 'color 0.15s',
+                  }}
+                >
+                  로그아웃
+                </button>
+              </>
+            ) : (
+              /* 비로그인 상태: 로그인 링크 표시 */
+              <button
+                onClick={() => setShowLoginModal(true)}
+                style={{
+                  background: 'none', border: 'none', padding: 0,
+                  fontSize: '14px', fontWeight: 600,
+                  color: colors.primary, cursor: 'pointer',
+                }}
+              >
+                로그인
+              </button>
+            )}
           </div>
         </div>
 
@@ -430,6 +445,85 @@ export default function ReviewerCampaignsPage() {
           </div>
         )}
       </div>
+
+      {/* ── 로그인 모달 (비로그인 신청 시도 시 표시) ─── */}
+      {showLoginModal && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowLoginModal(false) }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px 16px',
+          }}
+        >
+          <div style={{
+            width: '100%', maxWidth: '400px',
+            ...styles.card, padding: '32px', position: 'relative',
+            boxSizing: 'border-box',
+          }}>
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setShowLoginModal(false)}
+              style={{
+                position: 'absolute', top: '16px', right: '16px',
+                background: 'none', border: 'none',
+                fontSize: '18px', color: colors.subText,
+                cursor: 'pointer', lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+
+            {/* 로고 */}
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <Logo size="medium" />
+            </div>
+
+            <p style={{
+              margin: '0 0 24px', fontSize: '18px', fontWeight: 600,
+              color: colors.titleText, textAlign: 'center',
+            }}>
+              로그인하고 참여하세요
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button
+                onClick={() => router.push('/publisher/login')}
+                style={{
+                  width: '100%', height: '48px', borderRadius: '12px',
+                  background: colors.primary, color: '#FFFFFF',
+                  border: 'none', fontSize: '15px', fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                출판사로 로그인
+              </button>
+              <button
+                onClick={() => router.push(`/reviewer/login?redirect=/reviewer/campaigns`)}
+                style={{
+                  width: '100%', height: '48px', borderRadius: '12px',
+                  background: 'none', color: colors.primary,
+                  border: `1px solid ${colors.primary}`,
+                  fontSize: '15px', fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                리뷰어로 로그인
+              </button>
+              <button
+                onClick={() => router.push('/reader/signup?redirect=/reviewer/campaigns')}
+                style={{
+                  width: '100%', height: '48px', borderRadius: '12px',
+                  background: 'none', color: colors.text,
+                  border: `1px solid ${colors.border}`,
+                  fontSize: '15px', fontWeight: 500, cursor: 'pointer',
+                }}
+              >
+                독자로 가입하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

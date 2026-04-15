@@ -1,5 +1,6 @@
 // 하이라이트 저장 / 조회 API
 // service_role 키로 RLS 우회
+// highlights 테이블 구조: id, campaign_id, campaign_reviewer_id, text, cfi_range, chapter_label, created_at
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
   // access_token으로 campaign_reviewer 조회
   const { data: reviewer } = await supabase
     .from('campaign_reviewers')
-    .select('id, reviewer_id, campaign_id')
+    .select('id, campaign_id')
     .eq('access_token', accessToken)
     .single()
 
@@ -31,12 +32,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: '유효하지 않은 토큰' }, { status: 404 })
   }
 
-  // 해당 리뷰어의 하이라이트 목록 조회
+  // 해당 리뷰어의 하이라이트 목록 조회 (campaign_reviewer_id 기준)
   const { data: highlights } = await supabase
     .from('highlights')
     .select('id, text, cfi_range, chapter_label, created_at')
     .eq('campaign_id', reviewer.campaign_id)
-    .eq('reviewer_id', reviewer.reviewer_id)
+    .eq('campaign_reviewer_id', reviewer.id)
     .order('created_at', { ascending: true })
 
   return NextResponse.json({ highlights: highlights ?? [] })
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
   // access_token으로 campaign_reviewer 조회
   const { data: reviewer } = await supabase
     .from('campaign_reviewers')
-    .select('id, reviewer_id, campaign_id')
+    .select('id, campaign_id')
     .eq('access_token', accessToken)
     .single()
 
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
     .from('highlights')
     .select('id')
     .eq('campaign_id', reviewer.campaign_id)
-    .eq('reviewer_id', reviewer.reviewer_id)
+    .eq('campaign_reviewer_id', reviewer.id)
     .eq('cfi_range', cfiRange)
     .single()
 
@@ -76,12 +77,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: '이미 저장된 하이라이트' })
   }
 
-  // highlights 테이블에 저장
+  // highlights 테이블에 저장 (campaign_reviewer_id 사용)
   const { data, error } = await supabase
     .from('highlights')
     .insert({
       campaign_id: reviewer.campaign_id,
-      reviewer_id: reviewer.reviewer_id,
+      campaign_reviewer_id: reviewer.id,
       text,
       cfi_range: cfiRange,
       chapter_label: chapterLabel ?? null,
@@ -109,7 +110,7 @@ export async function DELETE(request: NextRequest) {
   // access_token으로 reviewer 확인
   const { data: reviewer } = await supabase
     .from('campaign_reviewers')
-    .select('id, reviewer_id')
+    .select('id')
     .eq('access_token', accessToken)
     .single()
 
@@ -117,12 +118,12 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: '유효하지 않은 토큰' }, { status: 404 })
   }
 
-  // 본인의 하이라이트만 삭제 가능
+  // 본인의 하이라이트만 삭제 가능 (campaign_reviewer_id 기준)
   const { error } = await supabase
     .from('highlights')
     .delete()
     .eq('id', highlightId)
-    .eq('reviewer_id', reviewer.reviewer_id)
+    .eq('campaign_reviewer_id', reviewer.id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

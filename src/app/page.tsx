@@ -3,7 +3,9 @@
 // 랜딩 페이지 — 전면 개편
 // 히어로 + 작동 방식 + 리포트 항목 + 리뷰어 안내 + 하단 CTA + 푸터
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
 import Footer from '@/components/Footer'
@@ -14,10 +16,21 @@ export default function HomePage() {
   // 버튼/링크 호버 상태
   const [publisherHover, setPublisherHover]       = useState(false)
   const [reviewerHover, setReviewerHover]         = useState(false)
-  const [feedHover, setFeedHover]                 = useState(false)
   const [ctaHover, setCtaHover]                   = useState(false)
   const [reviewerLinkHover, setReviewerLinkHover] = useState(false)
   const [pricingCtaHover, setPricingCtaHover]     = useState(false)
+
+  // 내비게이션 링크 호버 상태
+  const [campaignNavHover, setCampaignNavHover] = useState(false)
+  const [feedNavHover, setFeedNavHover]         = useState(false)
+  const [loginNavHover, setLoginNavHover]       = useState(false)
+
+  // 로그인 상태 및 역할
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [userRole, setUserRole]           = useState<string | null>(null)
+
+  // 로그인 모달 표시 여부
+  const [showLoginModal, setShowLoginModal] = useState(false)
 
   // 모바일 여부 (768px 미만)
   const [isMobile, setIsMobile] = useState(false)
@@ -27,6 +40,23 @@ export default function HomePage() {
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
+  }, [])
+
+  // 로그인 상태 확인 (내비게이션 링크 변경용)
+  useEffect(() => {
+    const checkAuth = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setCurrentUserId(user.id)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      setUserRole(profile?.role ?? null)
+    }
+    checkAuth()
   }, [])
 
   return (
@@ -41,19 +71,74 @@ export default function HomePage() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 24px',
       }}>
-        <Logo size="small" />
-        <button
-          onClick={() => router.push('/feed')}
-          onMouseEnter={() => setFeedHover(true)}
-          onMouseLeave={() => setFeedHover(false)}
-          style={{
-            background: 'none', border: 'none', fontSize: '14px',
-            color: feedHover ? colors.text : colors.subText,
-            cursor: 'pointer', transition: 'color 0.15s',
-          }}
-        >
-          리뷰 피드 보기
-        </button>
+        {/* 왼쪽: 로고 */}
+        <Link href="/" style={{ textDecoration: 'none' }}>
+          <Logo size="small" />
+        </Link>
+
+        {/* 오른쪽: 링크 목록 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+
+          {/* 캠페인 둘러보기 — 모바일에서 숨김 */}
+          {!isMobile && (
+            <Link
+              href="/reviewer/campaigns"
+              onMouseEnter={() => setCampaignNavHover(true)}
+              onMouseLeave={() => setCampaignNavHover(false)}
+              style={{
+                fontSize: '14px', textDecoration: 'none',
+                color: campaignNavHover ? colors.titleText : colors.text,
+                transition: 'color 0.15s',
+              }}
+            >
+              캠페인 둘러보기
+            </Link>
+          )}
+
+          {/* 리뷰 피드 */}
+          <Link
+            href="/feed"
+            onMouseEnter={() => setFeedNavHover(true)}
+            onMouseLeave={() => setFeedNavHover(false)}
+            style={{
+              fontSize: '14px', textDecoration: 'none',
+              color: feedNavHover ? colors.titleText : colors.text,
+              transition: 'color 0.15s',
+            }}
+          >
+            리뷰 피드
+          </Link>
+
+          {/* 로그인 / 대시보드 / 내 캠페인 */}
+          {currentUserId ? (
+            <Link
+              href={userRole === 'publisher' ? '/publisher/dashboard' : '/reviewer/my'}
+              onMouseEnter={() => setLoginNavHover(true)}
+              onMouseLeave={() => setLoginNavHover(false)}
+              style={{
+                fontSize: '14px', textDecoration: 'none', fontWeight: 600,
+                color: loginNavHover ? colors.primary2 : colors.primary,
+                transition: 'color 0.15s',
+              }}
+            >
+              {userRole === 'publisher' ? '대시보드' : '내 캠페인'}
+            </Link>
+          ) : (
+            <button
+              onClick={() => setShowLoginModal(true)}
+              onMouseEnter={() => setLoginNavHover(true)}
+              onMouseLeave={() => setLoginNavHover(false)}
+              style={{
+                background: 'none', border: 'none', padding: 0,
+                fontSize: '14px', fontWeight: 600,
+                color: loginNavHover ? colors.primary2 : colors.primary,
+                cursor: 'pointer', transition: 'color 0.15s',
+              }}
+            >
+              로그인
+            </button>
+          )}
+        </div>
       </nav>
 
       {/* ── 히어로 섹션 ───────────────────────────── */}
@@ -542,6 +627,85 @@ export default function HomePage() {
 
       {/* ── 푸터 ──────────────────────────────────── */}
       <Footer />
+
+      {/* ── 로그인 모달 ───────────────────────────── */}
+      {showLoginModal && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowLoginModal(false) }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px 16px',
+          }}
+        >
+          <div style={{
+            width: '100%', maxWidth: '400px',
+            ...styles.card, padding: '32px', position: 'relative',
+            boxSizing: 'border-box',
+          }}>
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setShowLoginModal(false)}
+              style={{
+                position: 'absolute', top: '16px', right: '16px',
+                background: 'none', border: 'none',
+                fontSize: '18px', color: colors.subText,
+                cursor: 'pointer', lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+
+            {/* 로고 */}
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <Logo size="medium" />
+            </div>
+
+            <p style={{
+              margin: '0 0 24px', fontSize: '18px', fontWeight: 600,
+              color: colors.titleText, textAlign: 'center',
+            }}>
+              로그인하고 참여하세요
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button
+                onClick={() => router.push('/publisher/login')}
+                style={{
+                  width: '100%', height: '48px', borderRadius: '12px',
+                  background: colors.primary, color: '#FFFFFF',
+                  border: 'none', fontSize: '15px', fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                출판사로 로그인
+              </button>
+              <button
+                onClick={() => router.push('/reviewer/login')}
+                style={{
+                  width: '100%', height: '48px', borderRadius: '12px',
+                  background: 'none', color: colors.primary,
+                  border: `1px solid ${colors.primary}`,
+                  fontSize: '15px', fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                리뷰어로 로그인
+              </button>
+              <button
+                onClick={() => router.push('/reader/signup')}
+                style={{
+                  width: '100%', height: '48px', borderRadius: '12px',
+                  background: 'none', color: colors.text,
+                  border: `1px solid ${colors.border}`,
+                  fontSize: '15px', fontWeight: 500, cursor: 'pointer',
+                }}
+              >
+                독자로 가입하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

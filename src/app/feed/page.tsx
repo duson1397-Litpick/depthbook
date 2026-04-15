@@ -4,6 +4,7 @@
 // 리뷰어들의 공개 리뷰 목록. 비로그인도 열람 가능.
 // 좋아요 / 읽고싶다 / 팔로우는 로그인 필요.
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
@@ -86,6 +87,9 @@ export default function FeedPage() {
 
   // 로그아웃 버튼 호버
   const [logoutHover, setLogoutHover] = useState(false)
+
+  // 캠페인 링크 호버 (내비게이션 바)
+  const [campaignNavHover, setCampaignNavHover] = useState(false)
 
   // 리뷰어 이름 호버 상태 (review.id 기준)
   const [hoveredReviewerId, setHoveredReviewerId] = useState<string | null>(null)
@@ -606,8 +610,23 @@ export default function FeedPage() {
           height: '100%', display: 'flex', alignItems: 'center',
           justifyContent: 'space-between',
         }}>
-          <div style={{ cursor: 'pointer' }} onClick={() => router.push('/feed')}>
-            <Logo size="small" />
+          {/* 왼쪽: 로고 + 캠페인 링크 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div style={{ cursor: 'pointer' }} onClick={() => router.push('/feed')}>
+              <Logo size="small" />
+            </div>
+            <Link
+              href="/reviewer/campaigns"
+              onMouseEnter={() => setCampaignNavHover(true)}
+              onMouseLeave={() => setCampaignNavHover(false)}
+              style={{
+                fontSize: '14px', textDecoration: 'none',
+                color: campaignNavHover ? colors.primary : colors.subText,
+                transition: 'color 0.15s',
+              }}
+            >
+              캠페인
+            </Link>
           </div>
 
           {currentUserId ? (

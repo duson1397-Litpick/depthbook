@@ -14,8 +14,8 @@ type Step = 'loading' | 'invalid' | 'ended' | 'verify-email' | 'viewer'
 // 뷰어 안에서의 화면 단계
 type Phase = 'viewer' | 'survey' | 'done' | 'publicReview' | 'allDone'
 
-// 테마 종류
-type Theme = 'light' | 'sepia' | 'dark'
+// 테마 종류 (세피아 제거 — 노란 배경에서 글이 잘 안 보여 밝은/어두운만 유지)
+type Theme = 'light' | 'dark'
 
 // 하이라이트 항목
 interface HighlightItem {
@@ -39,7 +39,7 @@ interface TocItem {
   href: string
 }
 
-// 테마별 색상 설정
+// 테마별 색상 설정 (밝은 / 어두운 두 가지만 유지)
 const THEME_CONFIG: Record<Theme, {
   bg: string
   text: string
@@ -52,21 +52,14 @@ const THEME_CONFIG: Record<Theme, {
     text: '#333E4F',
     barBg: '#FFFFFF',
     barText: colors.text,
-    watermark: 'rgba(0,0,0,0.03)',
-  },
-  sepia: {
-    bg: '#F5E6D0',
-    text: '#5B4636',
-    barBg: '#F5E6D0',
-    barText: '#5B4636',
-    watermark: 'rgba(91,70,54,0.04)',
+    watermark: 'rgba(0,0,0,0.06)',
   },
   dark: {
     bg: '#1A1A2E',
     text: '#D4D4D8',
     barBg: '#16162A',
     barText: '#D4D4D8',
-    watermark: 'rgba(255,255,255,0.03)',
+    watermark: 'rgba(255,255,255,0.06)',
   },
 }
 
@@ -216,8 +209,9 @@ function ViewerPageInner() {
 
   // ── localStorage에서 설정값 복원 ───────────────
   useEffect(() => {
+    // 세피아가 저장돼 있으면 밝은 테마로 초기화
     const savedTheme = localStorage.getItem('depthbook-theme') as Theme | null
-    if (savedTheme && ['light', 'sepia', 'dark'].includes(savedTheme)) setTheme(savedTheme)
+    if (savedTheme && ['light', 'dark'].includes(savedTheme)) setTheme(savedTheme)
     const savedFs = localStorage.getItem('depthbook-font-size')
     if (savedFs) setFontSize(Number(savedFs))
     const savedLh = localStorage.getItem('depthbook-line-height')
@@ -375,7 +369,16 @@ function ViewerPageInner() {
       })
 
       book.ready.then(() => {
-        book.locations.generate(1024).then(() => setTotalPages(book.locations.length()))
+        book.locations.generate(1024).then(() => {
+          setTotalPages(book.locations.length())
+          // generate() 완료 후 현재 위치의 진행률을 다시 계산
+          // (generate 전에 relocated가 먼저 발생하면 진행률이 0 또는 잘못된 값에 고정되기 때문)
+          const loc = renditionRef.current?.currentLocation()
+          if (loc?.start?.cfi) {
+            const pct = book.locations.percentageFromCfi(loc.start.cfi)
+            setProgress(Math.round(pct * 100))
+          }
+        })
       })
 
       // 목차 로드 → state와 ref 모두에 저장
@@ -778,12 +781,13 @@ function ViewerPageInner() {
     setPublicReviewLoading(false)
   }
 
-  // 공통 인풋 스타일
+  // 공통 인풋 스타일 (fontFamily 명시 — textarea도 포함하여 폰트 통일)
   const inputStyle: React.CSSProperties = {
     width: '100%', height: styles.input.height,
     borderRadius: styles.input.borderRadius, border: styles.input.border,
     padding: '0 14px', fontSize: '15px', color: colors.text,
     background: '#FFFFFF', outline: 'none', boxSizing: 'border-box',
+    fontFamily: styles.fontFamily,
   }
 
   // 설문 라벨 스타일
@@ -911,6 +915,7 @@ function ViewerPageInner() {
               <p style={{ fontSize: '14px', color: colors.success, fontWeight: 500 }}>✓ 리뷰 게시 완료</p>
             ) : (
               <>
+                {/* 공개 리뷰 작성 버튼 */}
                 <button
                   onClick={() => setPhase('publicReview')}
                   style={{
@@ -920,30 +925,21 @@ function ViewerPageInner() {
                   }}
                 >공개 리뷰 작성하기</button>
                 <p style={{ margin: '8px 0 0', fontSize: '13px', color: colors.subText2, textAlign: 'center' }}>
-                  뎁스북 피드에 공개되는 리뷰입니다. 다른 독자들이 볼 수 있어요.
+                  뎁스북 피드에 공개되는 리뷰입니다
                 </p>
               </>
             )}
           </div>
 
+          {/* 홈으로 이동 버튼 (원고로 돌아가기/건너뛰기 대신) */}
           <button
-            onClick={() => setPhase('viewer')}
+            onClick={() => { window.location.href = '/' }}
             style={{
               width: '100%', height: '44px', borderRadius: '10px',
               background: 'none', border: `1px solid ${colors.border}`,
               color: colors.text, fontSize: '15px', cursor: 'pointer', marginTop: '12px',
             }}
-          >원고로 돌아가기</button>
-
-          {!publicReviewSubmitted && (
-            <button
-              onClick={() => setPhase('viewer')}
-              style={{
-                background: 'none', border: 'none', fontSize: '14px',
-                color: colors.subText, cursor: 'pointer', marginTop: '12px', textDecoration: 'underline',
-              }}
-            >건너뛰기</button>
-          )}
+          >홈으로 이동</button>
         </div>
       </div>
     )
@@ -1077,14 +1073,15 @@ function ViewerPageInner() {
             }}
           >피드에서 보기</button>
 
+          {/* 홈으로 버튼 (원고로 돌아가기 대신) */}
           <button
-            onClick={() => setPhase('viewer')}
+            onClick={() => { window.location.href = '/' }}
             style={{
               width: '100%', height: '44px', borderRadius: '10px',
               background: 'none', border: `1px solid ${colors.border}`,
               color: colors.text, fontSize: '15px', cursor: 'pointer', marginTop: '12px',
             }}
-          >원고로 돌아가기</button>
+          >홈으로</button>
         </div>
       </div>
     )
@@ -1398,16 +1395,20 @@ function ViewerPageInner() {
             }}
           >📑</button>
 
-          {/* 설정 버튼 */}
+          {/* 설정 버튼 — "Aa" 텍스트로 글자 설정 느낌을 명확히 표현 */}
           <button
             onClick={(e) => { e.stopPropagation(); setShowSettingsPanel((v) => !v) }}
-            title="설정"
+            title="글자 설정"
             style={{
-              background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer',
-              padding: '4px', lineHeight: 1,
-              color: showSettingsPanel ? colors.primary : tc.barText,
+              background: showSettingsPanel ? colors.primary : colors.subBackground,
+              border: 'none', cursor: 'pointer',
+              borderRadius: '6px', padding: '6px 10px', lineHeight: 1,
+              color: showSettingsPanel ? '#FFFFFF' : tc.barText,
+              transition: 'background 0.15s, color 0.15s',
             }}
-          >⚙</button>
+          >
+            <span style={{ fontSize: '16px', fontWeight: 600 }}>Aa</span>
+          </button>
 
           <span style={{ fontSize: '13px', color: tc.barText, opacity: 0.6, whiteSpace: 'nowrap' }}>
             {totalPages > 0 ? `${progress}%` : ''}
@@ -1434,11 +1435,11 @@ function ViewerPageInner() {
             {/* 테마 선택 */}
             <div style={{ marginBottom: '20px' }}>
               <p style={{ margin: '0 0 10px', fontSize: '13px', color: colors.subText, fontWeight: 500 }}>테마</p>
+              {/* 밝은 / 어두운 두 가지 원형 버튼 */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {([
                   { key: 'light' as Theme, bg: '#FFFFFF', label: '밝은' },
-                  { key: 'sepia' as Theme, bg: '#F5E6D0', label: '세피아' },
-                  { key: 'dark' as Theme, bg: '#1A1A2E', label: '어두운' },
+                  { key: 'dark'  as Theme, bg: '#1A1A2E', label: '어두운' },
                 ]).map(({ key, bg, label }) => (
                   <button
                     key={key}
@@ -1456,7 +1457,7 @@ function ViewerPageInner() {
                   />
                 ))}
                 <span style={{ fontSize: '13px', color: colors.subText, marginLeft: '4px' }}>
-                  {theme === 'light' ? '밝은' : theme === 'sepia' ? '세피아' : '어두운'}
+                  {theme === 'dark' ? '어두운' : '밝은'}
                 </span>
               </div>
             </div>
