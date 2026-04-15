@@ -54,7 +54,6 @@ export default function CampaignNewPage() {
   // 캠페인 설정
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>('full_1m')
   const [sampleRatio, setSampleRatio] = useState('')
-  const [deadline, setDeadline] = useState('')
 
   // 무료 캠페인 현황
   const [freeCampaignsUsed, setFreeCampaignsUsed] = useState(0)
@@ -225,8 +224,8 @@ export default function CampaignNewPage() {
           description: description.trim(),
           epub_storage_path: filePath,
           sample_ratio: sampleRatioValue,
-          max_reviewers: planInfo.maxReviewers,
-          deadline: deadline || null,
+          max_reviewers: 9999,
+          deadline: null, // 모집 시작 시 자동 설정
           status: 'draft',
           plan_type: selectedPlan,
           is_free: isFree,
@@ -774,25 +773,18 @@ export default function CampaignNewPage() {
                 </div>
               )}
 
-              {/* 최대 리뷰어 수 — 플랜에 따라 자동 결정됨을 안내 */}
+              {/* 모집 기간 안내 — 마감일은 모집 시작 시 자동 설정 */}
               <div style={{
                 padding: '12px 14px', borderRadius: '8px',
                 background: colors.subBackground,
-                fontSize: '13px', color: colors.subText,
+                fontSize: '13px', color: colors.subText, lineHeight: 1.6,
               }}>
-                최대 리뷰어: <strong style={{ color: colors.text }}>{PLANS[selectedPlan].maxReviewers}명</strong>
-                {' '}(선택한 플랜 기준)
-              </div>
-
-              {/* 마감일 */}
-              <div>
-                <label style={labelStyle}>마감일</label>
-                <input
-                  type="date"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  style={inputStyle}
-                />
+                모집 시작 후{' '}
+                <strong style={{ color: colors.text }}>
+                  {PLANS[selectedPlan].durationDays === 60 ? '2개월(60일)' : '1개월(30일)'}
+                </strong>
+                {' '}동안 진행됩니다.
+                <br />마감일은 <strong style={{ color: colors.text }}>모집 시작하기</strong> 버튼을 누를 때 자동으로 설정됩니다.
               </div>
             </div>
           </div>

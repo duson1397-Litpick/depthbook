@@ -22,7 +22,6 @@ interface Campaign {
   title: string
   genre: string | null
   status: CampaignStatus
-  max_reviewers: number
   deadline: string | null
   created_at: string
 }
@@ -47,6 +46,16 @@ function formatDate(dateStr: string): string {
   const mm = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
   return `${yyyy}.${mm}.${dd}`
+}
+
+// 마감일까지 남은 기간을 텍스트로 반환
+// 마감 지남: "기간 만료" / 당일: "오늘 마감" / 이후: "남은 기간: N일"
+function formatRemainingDays(deadlineStr: string | null): string {
+  if (!deadlineStr) return '미정'
+  const days = Math.ceil((new Date(deadlineStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  if (days < 0) return '기간 만료'
+  if (days === 0) return '오늘 마감'
+  return `남은 기간: ${days}일`
 }
 
 export default function PublisherDashboardPage() {
@@ -518,7 +527,7 @@ export default function PublisherDashboardPage() {
                     </div>
                   )}
 
-                  {/* 리뷰어 수 + 마감일 */}
+                  {/* 리뷰어 수 + 남은 기간 */}
                   <div
                     style={{
                       marginTop: '12px',
@@ -529,10 +538,14 @@ export default function PublisherDashboardPage() {
                     }}
                   >
                     <span>
-                      리뷰어 {campaign.reviewerCount}/{campaign.max_reviewers}명
+                      리뷰어 {campaign.reviewerCount}명
                     </span>
-                    <span>
-                      마감 {campaign.deadline ? formatDate(campaign.deadline) : '미정'}
+                    <span style={{
+                      color: campaign.deadline && new Date(campaign.deadline) < new Date()
+                        ? colors.danger
+                        : colors.subText,
+                    }}>
+                      {formatRemainingDays(campaign.deadline)}
                     </span>
                   </div>
                 </div>

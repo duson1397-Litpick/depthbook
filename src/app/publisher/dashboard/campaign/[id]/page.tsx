@@ -25,8 +25,9 @@ interface Campaign {
   genre: string | null
   description: string | null
   status: CampaignStatus
-  max_reviewers: number
   deadline: string | null
+  expires_at: string | null
+  plan_type: string | null
   sample_ratio: number | null
   invite_token: string | null
   epub_storage_path: string | null
@@ -80,6 +81,16 @@ function formatDate(dateStr: string): string {
   return `${yyyy}.${mm}.${dd}`
 }
 
+// 마감일까지 남은 기간을 텍스트로 반환
+// 마감 지남: "기간 만료" / 당일: "오늘 마감" / 이후: "남은 기간: N일"
+function formatRemainingDays(deadlineStr: string | null): string {
+  if (!deadlineStr) return '미정'
+  const days = Math.ceil((new Date(deadlineStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  if (days < 0) return '기간 만료'
+  if (days === 0) return '오늘 마감'
+  return `남은 기간: ${days}일`
+}
+
 export default function CampaignDetailPage({ params }: { params: { id: string } }) {
   const campaignId = params.id
   const router = useRouter()
@@ -112,8 +123,6 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   const [editAuthor, setEditAuthor] = useState('')
   const [editGenre, setEditGenre] = useState('')
   const [editDescription, setEditDescription] = useState('')
-  const [editMaxReviewers, setEditMaxReviewers] = useState(0)
-  const [editDeadline, setEditDeadline] = useState('')
   const [editSaving, setEditSaving] = useState(false)
 
   // ── 삭제 확인 모달 상태 ─────────────────────────
@@ -256,9 +265,6 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     setEditAuthor(campaign.author ?? '')
     setEditGenre(campaign.genre ?? '')
     setEditDescription(campaign.description ?? '')
-    setEditMaxReviewers(campaign.max_reviewers)
-    // deadline을 date 인풋용 "YYYY-MM-DD" 형식으로 변환
-    setEditDeadline(campaign.deadline ? campaign.deadline.slice(0, 10) : '')
     setShowEditModal(true)
   }
 
@@ -270,12 +276,10 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     const { error } = await supabase
       .from('campaigns')
       .update({
-        title:        editTitle.trim() || campaign.title,
-        author:       editAuthor.trim() || null,
-        genre:        editGenre.trim() || null,
-        description:  editDescription.trim() || null,
-        max_reviewers: editMaxReviewers,
-        deadline:     editDeadline || null,
+        title:       editTitle.trim() || campaign.title,
+        author:      editAuthor.trim() || null,
+        genre:       editGenre.trim() || null,
+        description: editDescription.trim() || null,
       })
       .eq('id', campaign.id)
 
@@ -306,12 +310,24 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   }
 
   // 캠페인 상태 변경
+  // draft → recruiting 전환 시 플랜 기간에 따라 마감일 자동 설정
   const handleStatusChange = async (nextStatus: CampaignStatus) => {
     if (!campaign) return
 
+    const updateData: Record<string, unknown> = { status: nextStatus }
+
+    if (nextStatus === 'recruiting') {
+      // plan_type에 '2m'이 포함되면 60일, 아니면 30일
+      const duration = campaign.plan_type?.includes('2m') ? 60 : 30
+      const deadline = new Date()
+      deadline.setDate(deadline.getDate() + duration)
+      updateData.deadline = deadline.toISOString()
+      updateData.expires_at = deadline.toISOString()
+    }
+
     const { error } = await supabase
       .from('campaigns')
-      .update({ status: nextStatus })
+      .update(updateData)
       .eq('id', campaign.id)
 
     if (!error) {
@@ -526,10 +542,16 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             }}
           >
             <span style={{ color: colors.text }}>
-              리뷰어 {acceptedCount}/{campaign.max_reviewers}명
+              리뷰어 {acceptedCount}명
             </span>
-            <span style={{ color: colors.subText }}>
-              마감 {campaign.deadline ? formatDate(campaign.deadline) : '미정'}
+            <span style={{
+              color: campaign.deadline && new Date(campaign.deadline) < new Date()
+                ? colors.danger
+                : colors.subText,
+            }}>
+              {campaign.status === 'draft'
+                ? '모집 전'
+                : formatRemainingDays(campaign.deadline)}
             </span>
             <span style={{ color: colors.subText }}>
               유형: {typeText}
@@ -886,27 +908,6 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
               onChange={(e) => setEditDescription(e.target.value)}
               placeholder="캠페인 소개를 입력하세요"
               extraStyle={{ height: '100px' }}
-            />
-          </div>
-
-          {/* 최대 리뷰어 수 */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: colors.text, marginBottom: '6px' }}>최대 리뷰어 수</label>
-            <Input
-              type="number"
-              value={String(editMaxReviewers)}
-              onChange={(e) => setEditMaxReviewers(Number(e.target.value))}
-              placeholder="10"
-            />
-          </div>
-
-          {/* 마감일 */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: colors.text, marginBottom: '6px' }}>마감일</label>
-            <Input
-              type="date"
-              value={editDeadline}
-              onChange={(e) => setEditDeadline(e.target.value)}
             />
           </div>
 
