@@ -9,6 +9,7 @@ import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
 import Input from '@/components/Input'
 import Textarea from '@/components/Textarea'
+import { ArrowLeftIcon, CloseIcon, CheckIcon } from '@/components/Icons'
 
 // 캠페인 상태 종류
 type CampaignStatus = 'draft' | 'recruiting' | 'active' | 'completed'
@@ -453,7 +454,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             onMouseLeave={() => setBackHover(false)}
             style={backBtnStyle}
           >
-            <span style={{ fontSize: '16px', lineHeight: 1 }}>‹</span>
+            <ArrowLeftIcon size={18} />
             대시보드
           </button>
           <Logo size="small" />
@@ -876,9 +877,9 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             </p>
             <button
               onClick={() => setShowEditModal(false)}
-              style={{ background: 'none', border: 'none', fontSize: '18px', color: colors.subText, cursor: 'pointer', padding: 0, lineHeight: 1 }}
+              style={{ background: 'none', border: 'none', color: colors.subText, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
             >
-              ✕
+              <CloseIcon size={18} />
             </button>
           </div>
 
@@ -1010,7 +1011,9 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
           ) : (
             // 발송 완료 화면
             <>
-              <p style={{ margin: '0 0 8px', fontSize: '32px' }}>✓</p>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                <CheckIcon size={32} color={colors.success} />
+              </div>
               <p style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 600, color: colors.titleText }}>
                 발송 완료
               </p>

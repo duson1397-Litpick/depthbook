@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
 import Footer from '@/components/Footer'
-import { BellIcon, SearchIcon, HeartIcon, CommentIcon, BookmarkIcon } from '@/components/Icons'
+import { BellIcon, SearchIcon, HeartIcon, CommentIcon, BookmarkIcon, MoreIcon, CloseIcon, CheckIcon, StarIcon } from '@/components/Icons'
 import { timeAgo } from '@/lib/timeago'
 
 // 공개 리뷰 데이터 형태
@@ -872,7 +872,7 @@ export default function FeedPage() {
                       }}
                       title="더보기"
                     >
-                      ···
+                      <MoreIcon size={18} />
                     </button>
 
                     {/* 드롭다운 메뉴 */}
@@ -1026,12 +1026,9 @@ export default function FeedPage() {
                     )}
 
                     {/* 별점 */}
-                    <div style={{ marginTop: '12px' }}>
+                    <div style={{ marginTop: '12px', display: 'flex', gap: '2px' }}>
                       {[1, 2, 3, 4, 5].map((s) => (
-                        <span key={s} style={{
-                          fontSize: '14px',
-                          color: s <= review.rating ? '#FBBF24' : colors.border,
-                        }}>★</span>
+                        <StarIcon key={s} size={14} filled={s <= review.rating} color={s <= review.rating ? '#FBBF24' : colors.border} />
                       ))}
                     </div>
                   </div>
@@ -1269,17 +1266,19 @@ export default function FeedPage() {
               style={{
                 position: 'absolute', top: '16px', right: '16px',
                 background: 'none', border: 'none',
-                fontSize: '18px', color: colors.subText,
-                cursor: 'pointer', lineHeight: 1,
+                cursor: 'pointer', color: colors.subText,
+                display: 'flex', alignItems: 'center',
               }}
             >
-              ✕
+              <CloseIcon size={18} />
             </button>
 
             {reportDone ? (
               /* 신고 완료 화면 */
               <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <p style={{ fontSize: '40px', margin: '0 0 16px', lineHeight: 1 }}>✅</p>
+                <div style={{ margin: '0 0 16px', display: 'flex', justifyContent: 'center' }}>
+                  <CheckIcon size={40} color={colors.success} />
+                </div>
                 <p style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 600, color: colors.titleText }}>
                   신고가 접수되었습니다
                 </p>
@@ -1395,11 +1394,11 @@ export default function FeedPage() {
               style={{
                 position: 'absolute', top: '16px', right: '16px',
                 background: 'none', border: 'none',
-                fontSize: '18px', color: colors.subText,
-                cursor: 'pointer', lineHeight: 1,
+                cursor: 'pointer', color: colors.subText,
+                display: 'flex', alignItems: 'center',
               }}
             >
-              ✕
+              <CloseIcon size={18} />
             </button>
 
             {/* 로고 */}

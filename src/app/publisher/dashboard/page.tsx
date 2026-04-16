@@ -9,6 +9,7 @@ import { colors, styles } from '@/lib/design'
 import { PLANS, formatPrice } from '@/lib/plans'
 import Logo from '@/components/Logo'
 import Input from '@/components/Input'
+import { CloseIcon } from '@/components/Icons'
 
 // 모바일 여부 기준 너비
 const MOBILE_BP = 768
@@ -646,9 +647,9 @@ export default function PublisherDashboardPage() {
             </p>
             <button
               onClick={() => setShowEditModal(false)}
-              style={{ background: 'none', border: 'none', fontSize: '18px', color: colors.subText, cursor: 'pointer', padding: 0, lineHeight: 1 }}
+              style={{ background: 'none', border: 'none', color: colors.subText, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
             >
-              ✕
+              <CloseIcon size={18} />
             </button>
           </div>
 

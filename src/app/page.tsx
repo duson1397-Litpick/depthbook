@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
 import Footer from '@/components/Footer'
+import { StarIcon, CloseIcon, ArrowRightIcon } from '@/components/Icons'
 
 export default function HomePage() {
   const router = useRouter()
@@ -264,7 +265,7 @@ export default function HomePage() {
                 justifyContent: 'center', gap: '3px',
               }}>
                 {card.star && (
-                  <span style={{ fontSize: '16px', color: '#FBBF24', lineHeight: 1 }}>★</span>
+                  <StarIcon size={16} color="#FBBF24" filled={true} />
                 )}
                 <span style={{ fontSize: '22px', fontWeight: 700, color: colors.titleText }}>
                   {card.value}
@@ -439,7 +440,7 @@ export default function HomePage() {
             textAlign: 'center',
           }}>
             <p style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: colors.primary }}>
-              🎉 오픈 기념 — 첫 3건 무료 (1개월 게시)
+              오픈 기념 — 첫 3건 무료 (1개월 게시)
             </p>
           </div>
 
@@ -582,9 +583,11 @@ export default function HomePage() {
                 fontSize: '16px', fontWeight: 600,
                 color: reviewerLinkHover ? colors.primary : colors.info,
                 cursor: 'pointer', transition: 'color 0.15s',
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
               }}
             >
-              리뷰어로 참여하기 →
+              리뷰어로 참여하기
+              <ArrowRightIcon size={16} />
             </span>
           </p>
         </div>
@@ -650,11 +653,11 @@ export default function HomePage() {
               style={{
                 position: 'absolute', top: '16px', right: '16px',
                 background: 'none', border: 'none',
-                fontSize: '18px', color: colors.subText,
-                cursor: 'pointer', lineHeight: 1,
+                cursor: 'pointer', color: colors.subText,
+                display: 'flex', alignItems: 'center',
               }}
             >
-              ✕
+              <CloseIcon size={18} />
             </button>
 
             {/* 로고 */}

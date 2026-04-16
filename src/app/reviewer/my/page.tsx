@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import { CheckIcon, ArrowRightIcon } from '@/components/Icons'
 
 // 리뷰어 참여 상태 종류
 type ReviewerStatus = 'pending' | 'accepted' | 'reading' | 'completed' | 'rejected'
@@ -241,15 +242,18 @@ export default function ReviewerMyPage() {
                           fontWeight: 600, cursor: 'pointer',
                           opacity: hoverReadBtn === row.id ? 0.9 : 1,
                           transition: 'opacity 0.15s',
+                          display: 'inline-flex', alignItems: 'center', gap: '6px',
                         }}
                       >
-                        원고 읽기 →
+                        원고 읽기
+                        <ArrowRightIcon size={14} />
                       </button>
                     )}
 
                     {row.status === 'completed' && (
-                      <span style={{ fontSize: '14px', color: colors.success, fontWeight: 500 }}>
-                        ✓ 설문 제출 완료
+                      <span style={{ fontSize: '14px', color: colors.success, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <CheckIcon size={14} color={colors.success} />
+                        설문 제출 완료
                       </span>
                     )}
 

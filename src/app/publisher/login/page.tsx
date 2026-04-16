@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import { ArrowLeftIcon, CheckIcon } from '@/components/Icons'
 
 // 현재 선택된 탭 종류
 type Tab = 'login' | 'signup'
@@ -353,10 +354,12 @@ export default function PublisherLoginPage() {
                 style={{
                   background: 'none', border: 'none', padding: 0,
                   fontSize: '14px', color: colors.subText, cursor: 'pointer',
-                  display: 'block', margin: '16px auto 0', textAlign: 'center',
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  margin: '16px auto 0', justifyContent: 'center',
                 }}
               >
-                ← 로그인으로 돌아가기
+                <ArrowLeftIcon size={14} />
+                로그인으로 돌아가기
               </button>
             </div>
           )}
@@ -501,7 +504,7 @@ export default function PublisherLoginPage() {
                   }}
                 >
                   {agreeTerms && (
-                    <span style={{ color: '#FFFFFF', fontSize: '12px', fontWeight: 700, lineHeight: 1 }}>✓</span>
+                    <CheckIcon size={12} color="#FFFFFF" />
                   )}
                 </div>
                 <span style={{ fontSize: '13px', color: colors.subText, lineHeight: 1.5 }}>

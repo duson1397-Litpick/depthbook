@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import { CheckIcon } from '@/components/Icons'
 
 export default function ResetPasswordPage() {
   const router = useRouter()
@@ -123,10 +124,12 @@ export default function ResetPasswordPage() {
           <div style={{ textAlign: 'center' }}>
             <div style={{
               width: '52px', height: '52px', borderRadius: '50%',
-              background: colors.success, color: '#FFFFFF',
+              background: colors.success,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '22px', margin: '0 auto 16px',
-            }}>✓</div>
+              margin: '0 auto 16px',
+            }}>
+              <CheckIcon size={22} color="#FFFFFF" />
+            </div>
             <p style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 600, color: colors.titleText }}>
               비밀번호가 변경되었습니다
             </p>

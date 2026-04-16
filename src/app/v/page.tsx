@@ -7,6 +7,7 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import { ArrowLeftIcon, ArrowRightIcon, StarIcon, WarningIcon, MenuIcon, HighlightIcon, CloseIcon, CheckIcon } from '@/components/Icons'
 
 // 페이지 단계 (인증 흐름)
 type Step = 'loading' | 'invalid' | 'ended' | 'verify-email' | 'viewer'
@@ -86,7 +87,7 @@ function BackButton({ onClick, label }: { onClick: () => void; label: string }) 
         marginBottom: '24px',
       }}
     >
-      <span style={{ lineHeight: 1 }}>‹</span>
+      <ArrowLeftIcon size={18} />
       {label}
     </button>
   )
@@ -822,7 +823,9 @@ function ViewerPageInner() {
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px',
       }}>
         <div style={{ width: '100%', maxWidth: '420px', ...styles.card, padding: '40px', textAlign: 'center' }}>
-          <p style={{ margin: '0 0 16px', fontSize: '40px' }}>⚠️</p>
+          <div style={{ margin: '0 0 16px', display: 'flex', justifyContent: 'center' }}>
+            <WarningIcon size={48} color={colors.subText} />
+          </div>
           <p style={{ margin: 0, fontSize: '16px', color: colors.text }}>
             {step === 'ended' ? '종료된 캠페인입니다' : '잘못된 링크입니다'}
           </p>
@@ -899,10 +902,12 @@ function ViewerPageInner() {
         <div style={{ width: '100%', maxWidth: '420px', ...styles.card, padding: '48px', textAlign: 'center' }}>
           <div style={{
             width: '56px', height: '56px', borderRadius: '50%',
-            background: colors.success, color: '#FFFFFF',
+            background: colors.success,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '24px', margin: '0 auto',
-          }}>✓</div>
+            margin: '0 auto',
+          }}>
+            <CheckIcon size={24} color="#FFFFFF" />
+          </div>
 
           <p style={{ margin: '20px 0 0', fontSize: '20px', fontWeight: 700, color: colors.titleText }}>
             설문이 제출되었습니다
@@ -912,7 +917,10 @@ function ViewerPageInner() {
 
           <div style={{ marginTop: '32px' }}>
             {publicReviewSubmitted ? (
-              <p style={{ fontSize: '14px', color: colors.success, fontWeight: 500 }}>✓ 리뷰 게시 완료</p>
+              <p style={{ fontSize: '14px', color: colors.success, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                <CheckIcon size={14} color={colors.success} />
+                리뷰 게시 완료
+              </p>
             ) : (
               <>
                 {/* 공개 리뷰 작성 버튼 */}
@@ -977,11 +985,13 @@ function ViewerPageInner() {
                     onMouseEnter={() => setPublicReviewHoverRating(star)}
                     onMouseLeave={() => setPublicReviewHoverRating(0)}
                     style={{
-                      fontSize: '32px', cursor: 'pointer', lineHeight: 1,
+                      cursor: 'pointer', lineHeight: 1,
                       color: star <= (publicReviewHoverRating || publicReviewRating) ? '#FBBF24' : colors.border,
                       transform: star <= (publicReviewHoverRating || publicReviewRating) ? 'scale(1.2)' : 'scale(1)',
                       transition: 'color 0.1s, transform 0.1s', display: 'inline-block',
-                    }}>★</span>
+                    }}>
+                    <StarIcon size={32} filled={star <= (publicReviewHoverRating || publicReviewRating)} color={star <= (publicReviewHoverRating || publicReviewRating) ? '#FBBF24' : colors.border} />
+                  </span>
                 ))}
               </div>
 
@@ -1051,10 +1061,12 @@ function ViewerPageInner() {
         <div style={{ width: '100%', maxWidth: '420px', ...styles.card, padding: '48px', textAlign: 'center' }}>
           <div style={{
             width: '56px', height: '56px', borderRadius: '50%',
-            background: colors.success, color: '#FFFFFF',
+            background: colors.success,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '24px', margin: '0 auto',
-          }}>✓</div>
+            margin: '0 auto',
+          }}>
+            <CheckIcon size={24} color="#FFFFFF" />
+          </div>
 
           <p style={{ margin: '20px 0 0', fontSize: '20px', fontWeight: 700, color: colors.titleText }}>
             리뷰가 게시되었습니다
@@ -1121,11 +1133,13 @@ function ViewerPageInner() {
                     <span key={star} onClick={() => setRating(star)}
                       onMouseEnter={() => setHoverRating(star)} onMouseLeave={() => setHoverRating(0)}
                       style={{
-                        fontSize: '32px', cursor: 'pointer',
+                        cursor: 'pointer',
                         color: star <= (hoverRating || rating) ? '#FBBF24' : '#E2E8F0',
                         transform: star <= (hoverRating || rating) ? 'scale(1.2)' : 'scale(1)',
                         transition: 'color 0.1s, transform 0.1s', userSelect: 'none', display: 'inline-block',
-                      }}>★</span>
+                      }}>
+                      <StarIcon size={32} filled={star <= (hoverRating || rating)} color={star <= (hoverRating || rating) ? '#FBBF24' : '#E2E8F0'} />
+                    </span>
                   ))}
                 </div>
               </div>
@@ -1256,7 +1270,10 @@ function ViewerPageInner() {
           background: 'rgba(0,0,0,0.9)', display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', gap: '12px',
         }}>
-          <p style={{ margin: 0, fontSize: '24px', color: '#FFFFFF' }}>⚠️ 개발자 도구가 감지되었습니다</p>
+          <div style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: '#FFFFFF' }}>
+            <WarningIcon size={24} color="#FFFFFF" />
+            <span style={{ fontSize: '24px' }}>개발자 도구가 감지되었습니다</span>
+          </div>
           <p style={{ margin: 0, fontSize: '15px', color: 'rgba(255,255,255,0.7)' }}>
             원고 보호를 위해 개발자 도구를 닫아주세요
           </p>
@@ -1296,10 +1313,11 @@ function ViewerPageInner() {
           <button
             onClick={() => setShowTocPanel(false)}
             style={{
-              background: 'none', border: 'none', fontSize: '18px',
+              background: 'none', border: 'none',
               cursor: 'pointer', color: colors.subText, padding: '2px',
+              display: 'flex', alignItems: 'center',
             }}
-          >✕</button>
+          ><CloseIcon size={18} /></button>
         </div>
 
         {/* 목차 항목 목록 */}
@@ -1366,8 +1384,9 @@ function ViewerPageInner() {
               background: 'none', border: 'none', fontSize: '20px',
               color: showTocPanel ? colors.primary : tc.barText,
               cursor: 'pointer', padding: '4px 8px', lineHeight: 1,
+              display: 'flex', alignItems: 'center',
             }}
-          >☰</button>
+          ><MenuIcon size={20} /></button>
           <Logo size="small" />
         </div>
 
@@ -1392,8 +1411,9 @@ function ViewerPageInner() {
               background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer',
               padding: '4px', lineHeight: 1,
               color: showHighlightPanel ? colors.primary : tc.barText,
+              display: 'flex', alignItems: 'center',
             }}
-          >📑</button>
+          ><HighlightIcon size={20} /></button>
 
           {/* 설정 버튼 — "Aa" 텍스트로 글자 설정 느낌을 명확히 표현 */}
           <button
@@ -1569,9 +1589,11 @@ function ViewerPageInner() {
                   borderRadius: '10px', background: '#FFFFFF',
                   color: colors.primary, fontSize: '15px', fontWeight: 600,
                   border: 'none', cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
                 }}
               >
-                ← 이전 페이지
+                <ArrowLeftIcon size={16} />
+                이전 페이지
               </button>
             </div>
           )}
@@ -1592,9 +1614,10 @@ function ViewerPageInner() {
             }}>
               <span style={{ fontSize: '16px', fontWeight: 600, color: colors.titleText }}>내 하이라이트</span>
               <button onClick={() => setShowHighlightPanel(false)} style={{
-                background: 'none', border: 'none', fontSize: '18px',
+                background: 'none', border: 'none',
                 cursor: 'pointer', color: colors.subText, padding: '2px',
-              }}>✕</button>
+                display: 'flex', alignItems: 'center',
+              }}><CloseIcon size={18} /></button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
               {highlights.length === 0 ? (
@@ -1631,7 +1654,7 @@ function ViewerPageInner() {
                         cursor: 'pointer', padding: '2px 4px', lineHeight: 1,
                       }}
                       title="하이라이트 삭제"
-                    >✕</button>
+                    ><CloseIcon size={14} /></button>
                   </div>
                 ))
               )}
@@ -1678,7 +1701,8 @@ function ViewerPageInner() {
             color: atStart ? (theme === 'dark' ? 'rgba(212,212,216,0.3)' : colors.subText2) : tc.barText,
             cursor: atStart ? 'default' : 'pointer',
             padding: isMobile ? '8px 6px' : '8px', minHeight: '44px',
-          }}>← 이전</button>
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+          }}><ArrowLeftIcon size={14} />이전</button>
           <span style={{ fontSize: '14px', color: tc.barText, opacity: 0.6, minWidth: '36px', textAlign: 'center' }}>
             {totalPages > 0 ? `${progress}%` : '—'}
           </span>
@@ -1687,7 +1711,8 @@ function ViewerPageInner() {
             color: atEnd ? (theme === 'dark' ? 'rgba(212,212,216,0.3)' : colors.subText2) : tc.barText,
             cursor: atEnd ? 'default' : 'pointer',
             padding: isMobile ? '8px 6px' : '8px', minHeight: '44px',
-          }}>다음 →</button>
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+          }}>다음<ArrowRightIcon size={14} /></button>
         </div>
 
         {/* 설문 버튼 or 완료 텍스트 */}
@@ -1697,17 +1722,20 @@ function ViewerPageInner() {
             padding: isMobile ? '8px 10px' : '8px 16px', borderRadius: '8px',
             fontSize: isMobile ? '12px' : '13px', fontWeight: 600, cursor: 'pointer',
             whiteSpace: 'nowrap', minHeight: '44px',
-          }}>설문 작성 →</button>
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+          }}>설문 작성<ArrowRightIcon size={14} /></button>
         ) : !publicReviewSubmitted ? (
           <button onClick={() => setPhase('publicReview')} style={{
             background: 'none', color: colors.primary, border: `1px solid ${colors.primary}`,
             padding: isMobile ? '8px 10px' : '8px 16px', borderRadius: '8px',
             fontSize: isMobile ? '12px' : '13px', fontWeight: 600, cursor: 'pointer',
             whiteSpace: 'nowrap', minHeight: '44px',
-          }}>공개 리뷰 작성 →</button>
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+          }}>공개 리뷰 작성<ArrowRightIcon size={14} /></button>
         ) : (
-          <span style={{ fontSize: '13px', fontWeight: 600, color: colors.success, paddingRight: '4px' }}>
-            ✓ 모두 완료
+          <span style={{ fontSize: '13px', fontWeight: 600, color: colors.success, paddingRight: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <CheckIcon size={14} color={colors.success} />
+            모두 완료
           </span>
         )}
       </div>

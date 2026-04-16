@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import { WarningIcon, ArrowRightIcon, CheckIcon } from '@/components/Icons'
 
 // 화면 단계
 type Phase = 'loading' | 'error' | 'publisher-account' | 'info' | 'already-joined' | 'done'
@@ -162,7 +163,9 @@ function ReviewerJoinPageInner() {
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <Logo size="medium" />
         </div>
-        <p style={{ margin: '0 0 12px', fontSize: '40px' }}>🚫</p>
+        <div style={{ margin: '0 0 12px', display: 'flex', justifyContent: 'center' }}>
+          <WarningIcon size={40} color={colors.danger} />
+        </div>
         <p style={{
           margin: '0 0 8px', fontSize: '18px', fontWeight: 700, color: colors.titleText,
         }}>
@@ -195,7 +198,9 @@ function ReviewerJoinPageInner() {
   if (phase === 'error') {
     return cardWrapper(
       <div style={{ textAlign: 'center' }}>
-        <p style={{ margin: '0 0 16px', fontSize: '40px' }}>⚠️</p>
+        <div style={{ margin: '0 0 16px', display: 'flex', justifyContent: 'center' }}>
+          <WarningIcon size={40} color={colors.subText} />
+        </div>
         <p style={{ margin: 0, fontSize: '16px', color: colors.text }}>{errorMsg}</p>
       </div>
     )
@@ -207,10 +212,12 @@ function ReviewerJoinPageInner() {
       <div style={{ textAlign: 'center' }}>
         <div style={{
           width: '56px', height: '56px', borderRadius: '50%',
-          background: colors.success, color: '#FFFFFF',
+          background: colors.success,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '24px', margin: '0 auto',
-        }}>✓</div>
+          margin: '0 auto',
+        }}>
+          <CheckIcon size={24} color="#FFFFFF" />
+        </div>
         <p style={{ margin: '20px 0 0', fontSize: '20px', fontWeight: 700, color: colors.titleText }}>
           참여가 완료되었습니다
         </p>
@@ -227,9 +234,11 @@ function ReviewerJoinPageInner() {
             background: colors.primary, color: '#FFFFFF',
             fontSize: '15px', fontWeight: 600, border: 'none',
             cursor: 'pointer', marginTop: '24px',
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
           }}
         >
-          원고 읽기 시작 →
+          원고 읽기 시작
+          <ArrowRightIcon size={15} />
         </button>
 
         {/* 내 캠페인으로 */}
@@ -280,9 +289,11 @@ function ReviewerJoinPageInner() {
             borderRadius: styles.button.borderRadius,
             background: colors.primary, color: '#FFFFFF',
             fontSize: '15px', fontWeight: 600, border: 'none', cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
           }}
         >
-          원고 읽기 →
+          원고 읽기
+          <ArrowRightIcon size={15} />
         </button>
       </div>
     )

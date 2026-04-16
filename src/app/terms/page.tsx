@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import { ArrowLeftIcon } from '@/components/Icons'
 
 export const metadata: Metadata = {
   title: '이용약관 — DepthBook',
@@ -42,9 +43,10 @@ export default function TermsPage() {
           <Link href="/" style={{
             fontSize: '15px', fontWeight: 600,
             color: colors.text, textDecoration: 'none',
-            display: 'inline-flex', alignItems: 'center', gap: '4px',
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
           }}>
-            ‹ 홈
+            <ArrowLeftIcon size={18} />
+            홈
           </Link>
           <Logo size="small" />
         </div>

@@ -5,6 +5,7 @@
 import { useRouter } from 'next/navigation'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import { WarningIcon } from '@/components/Icons'
 
 export default function ErrorPage({
   reset,
@@ -31,7 +32,9 @@ export default function ErrorPage({
       <Logo size="large" />
 
       {/* 오류 아이콘 */}
-      <p style={{ margin: '24px 0 0', fontSize: '48px', lineHeight: 1 }}>⚠️</p>
+      <div style={{ margin: '24px 0 0', display: 'flex', justifyContent: 'center' }}>
+        <WarningIcon size={48} color={colors.subText} />
+      </div>
 
       {/* 제목 */}
       <p

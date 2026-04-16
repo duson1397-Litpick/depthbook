@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import { ArrowLeftIcon, StarIcon, CheckIcon } from '@/components/Icons'
 
 // 설문 응답 형태
 interface Survey {
@@ -359,7 +360,7 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
             onMouseLeave={() => setBackHover(false)}
             style={backBtnStyle}
           >
-            <span style={{ fontSize: '16px', lineHeight: 1 }}>‹</span>
+            <ArrowLeftIcon size={18} />
             캠페인 상세
           </button>
           <Logo size="small" />
@@ -399,7 +400,7 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
               }
               {/* 별점에 따른 추가 문구 */}
               {avgRating !== null && avgRating >= 4.0 && (
-                <span style={{ color: colors.success }}> 높은 평가를 받고 있습니다 👏</span>
+                <span style={{ color: colors.success }}> 높은 평가를 받고 있습니다</span>
               )}
               {avgRating !== null && avgRating < 3.0 && (
                 <span style={{ color: colors.warning }}> 개선 포인트를 확인해보세요</span>
@@ -430,8 +431,8 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
               평균 별점
             </p>
             {/* 별과 숫자를 같은 줄에 배치 */}
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '20px', color: '#FBBF24', lineHeight: 1 }}>★</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <StarIcon size={20} color="#FBBF24" filled={true} />
               <span style={{ fontSize: '24px', fontWeight: 700, color: colors.titleText }}>
                 {avgRating !== null ? formatScore(avgRating) : '—'}
               </span>
@@ -451,8 +452,8 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
             <p style={{ margin: '0 0 10px', fontSize: '12px', fontWeight: 500, color: colors.subText, letterSpacing: '0.5px' }}>
               추천 의향
             </p>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '20px', color: '#FBBF24', lineHeight: 1 }}>★</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <StarIcon size={20} color="#FBBF24" filled={true} />
               <span style={{ fontSize: '24px', fontWeight: 700, color: colors.titleText }}>
                 {avgRecommend !== null ? formatScore(avgRecommend) : '—'}
               </span>
@@ -527,11 +528,14 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
                     {item.text}
                   </p>
                   {item.rating !== null && (
-                    <p style={{ margin: '8px 0 0', fontSize: '13px', color: '#FBBF24', textAlign: 'right' }}>
-                      {'★'.repeat(Math.round(item.rating))}
-                      {'☆'.repeat(5 - Math.round(item.rating))}
-                      {' '}({item.rating})
-                    </p>
+                    <div style={{ margin: '8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2px' }}>
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <StarIcon key={s} size={13} filled={s <= Math.round(item.rating!)} color="#FBBF24" />
+                      ))}
+                      <span style={{ marginLeft: '4px', fontSize: '13px', color: colors.subText2 }}>
+                        ({item.rating})
+                      </span>
+                    </div>
                   )}
                 </div>
               ))}
@@ -1049,7 +1053,10 @@ export default function CampaignReportPage({ params }: { params: { id: string } 
               minHeight: '44px',
             }}
           >
-            {copied ? '✓ 복사 완료!' : '리포트 링크 복사'}
+            {copied
+              ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><CheckIcon size={14} color="#FFFFFF" />복사 완료!</span>
+              : '리포트 링크 복사'
+            }
           </button>
         </div>
       </div>

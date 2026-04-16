@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
+import { CheckIcon, CloseIcon } from '@/components/Icons'
 
 // 장르 필터 목록
 const GENRES = ['전체', '소설', '에세이', '인문', '자기계발', '경영', '과학', '시', '기타']
@@ -409,8 +410,9 @@ export default function ReviewerCampaignsPage() {
                       </span>
                     ) : isApplied ? (
                       // 방금 신청 완료된 경우
-                      <span style={{ fontSize: '14px', color: colors.success, fontWeight: 500 }}>
-                        ✓ 신청 완료 — 승인을 기다리는 중
+                      <span style={{ fontSize: '14px', color: colors.success, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <CheckIcon size={14} color={colors.success} />
+                        신청 완료 — 승인을 기다리는 중
                       </span>
                     ) : isFull ? (
                       // 모집 인원이 찼을 때
@@ -468,11 +470,11 @@ export default function ReviewerCampaignsPage() {
               style={{
                 position: 'absolute', top: '16px', right: '16px',
                 background: 'none', border: 'none',
-                fontSize: '18px', color: colors.subText,
-                cursor: 'pointer', lineHeight: 1,
+                cursor: 'pointer', color: colors.subText,
+                display: 'flex', alignItems: 'center',
               }}
             >
-              ✕
+              <CloseIcon size={18} />
             </button>
 
             {/* 로고 */}

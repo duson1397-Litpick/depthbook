@@ -9,22 +9,29 @@ import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
 import Input from '@/components/Input'
 import Textarea from '@/components/Textarea'
+import { StarIcon, ArrowLeftIcon, CloseIcon } from '@/components/Icons'
 
 // 선호 장르 선택 목록
 const GENRE_OPTIONS = ['소설', '에세이', '인문', '자기계발', '경영', '과학', '시', '기타']
 
-// 등급별 표시 텍스트
+// 등급별 표시 텍스트 (이모지 제거)
 const GRADE_LABELS: Record<string, string> = {
-  bronze:   '🥉 브론즈',
-  silver:   '🥈 실버',
-  gold:     '🥇 골드',
-  platinum: '💎 플래티넘',
+  bronze:   '브론즈',
+  silver:   '실버',
+  gold:     '골드',
+  platinum: '플래티넘',
 }
 
-// 별점을 ★☆ 문자로 변환
-function renderStars(rating: number): string {
+// 별점을 StarIcon 배열로 렌더링
+function RenderStars({ rating }: { rating: number }) {
   const full = Math.round(rating)
-  return '★'.repeat(full) + '☆'.repeat(5 - full)
+  return (
+    <span style={{ display: 'inline-flex', gap: '1px' }}>
+      {[1, 2, 3, 4, 5].map((s) => (
+        <StarIcon key={s} size={14} filled={s <= full} color="#FBBF24" />
+      ))}
+    </span>
+  )
 }
 
 // YYYY.MM.DD 형식으로 날짜 변환
@@ -298,10 +305,11 @@ export default function ReviewerProfilePage({ params }: { params: { id: string }
               style={{
                 background: 'none', border: 'none', padding: 0,
                 fontSize: '15px', fontWeight: 600, color: colors.text,
-                cursor: 'pointer',
+                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px',
               }}
             >
-              ‹ 피드
+              <ArrowLeftIcon size={18} />
+              피드
             </button>
             <Logo size="small" />
           </div>
@@ -342,7 +350,7 @@ export default function ReviewerProfilePage({ params }: { params: { id: string }
               transition: 'color 0.15s ease',
             }}
           >
-            <span style={{ lineHeight: 1 }}>‹</span>
+            <ArrowLeftIcon size={18} />
             피드
           </button>
           <Logo size="small" />
@@ -547,9 +555,7 @@ export default function ReviewerProfilePage({ params }: { params: { id: string }
                       justifyContent: 'space-between',
                       alignItems: 'center',
                     }}>
-                      <span style={{ fontSize: '14px', color: '#FBBF24', letterSpacing: '1px' }}>
-                        {renderStars(review.rating)}
-                      </span>
+                      <RenderStars rating={review.rating} />
                       <span style={{ fontSize: '13px', color: colors.subText2 }}>
                         {formatDate(review.created_at)}
                       </span>
@@ -588,9 +594,9 @@ export default function ReviewerProfilePage({ params }: { params: { id: string }
             </p>
             <button
               onClick={() => setShowEditModal(false)}
-              style={{ background: 'none', border: 'none', fontSize: '18px', color: colors.subText, cursor: 'pointer', padding: 0, lineHeight: 1 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.subText, display: 'flex', alignItems: 'center' }}
             >
-              ✕
+              <CloseIcon size={18} />
             </button>
           </div>
 

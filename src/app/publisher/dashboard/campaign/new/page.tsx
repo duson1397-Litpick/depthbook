@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import { PLANS, formatPrice, FREE_CAMPAIGN_LIMIT, FREE_CAMPAIGN_DURATION, type PlanKey } from '@/lib/plans'
 import Logo from '@/components/Logo'
+import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from '@/components/Icons'
 
 // 모바일 기준 너비
 const MOBILE_BP = 768
@@ -323,8 +324,10 @@ export default function CampaignNewPage() {
             width: '56px', height: '56px', borderRadius: '50%',
             background: colors.success, color: '#FFFFFF',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '24px', margin: '0 auto',
-          }}>✓</div>
+            margin: '0 auto',
+          }}>
+            <CheckIcon size={24} color="#FFFFFF" />
+          </div>
           <p style={{ margin: '20px 0 0', fontSize: '20px', fontWeight: 700, color: colors.titleText }}>
             캠페인이 생성되었습니다
           </p>
@@ -423,7 +426,7 @@ export default function CampaignNewPage() {
               background: '#EEF2FF', borderRadius: '10px', padding: '12px 16px',
               marginBottom: '16px', fontSize: '13px', color: '#4B5EAA', lineHeight: 1.5,
             }}>
-              🎉 오픈 기념 무료 캠페인 {freeCampaignsUsed + 1}/{FREE_CAMPAIGN_LIMIT}건
+              오픈 기념 무료 캠페인 {freeCampaignsUsed + 1}/{FREE_CAMPAIGN_LIMIT}건
               {freeCampaignsRemaining === 1 && ' — 마지막 무료 건입니다'}
             </div>
           )}
@@ -472,7 +475,7 @@ export default function CampaignNewPage() {
                 alignItems: 'center', gap: '6px', transition: 'color 0.15s ease',
               }}
             >
-              <span style={{ lineHeight: 1 }}>‹</span>
+              <ArrowLeftIcon size={18} />
               뒤로 가기
             </button>
           </div>
@@ -515,7 +518,7 @@ export default function CampaignNewPage() {
               alignItems: 'center', gap: '6px', transition: 'color 0.15s ease',
             }}
           >
-            <span style={{ lineHeight: 1 }}>‹</span>
+            <ArrowLeftIcon size={18} />
             뒤로
           </button>
           <Logo size="small" />
@@ -542,7 +545,6 @@ export default function CampaignNewPage() {
             alignItems: 'center',
             gap: '10px',
           }}>
-            <span style={{ fontSize: '20px' }}>🎉</span>
             <div>
               <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#3B4FCA' }}>
                 오픈 기념 — 첫 {FREE_CAMPAIGN_LIMIT}건 무료
@@ -624,7 +626,7 @@ export default function CampaignNewPage() {
                     background: colors.primary,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <span style={{ color: '#FFFFFF', fontSize: '12px', fontWeight: 700 }}>✓</span>
+                    <CheckIcon size={12} color="#FFFFFF" />
                   </div>
                 )}
               </div>
@@ -817,7 +819,10 @@ export default function CampaignNewPage() {
               transition: 'opacity 0.15s', marginTop: '24px',
             }}
           >
-            다음: 확인 →
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            다음: 확인
+            <ArrowRightIcon size={16} />
+          </span>
           </button>
         </form>
       </div>
