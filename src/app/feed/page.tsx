@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase'
 import { colors, styles } from '@/lib/design'
 import Logo from '@/components/Logo'
 import Footer from '@/components/Footer'
+import { BellIcon, SearchIcon, HeartIcon, CommentIcon, BookmarkIcon } from '@/components/Icons'
 import { timeAgo } from '@/lib/timeago'
 
 // 공개 리뷰 데이터 형태
@@ -637,13 +638,16 @@ export default function FeedPage() {
                 <button
                   onClick={() => setShowNotifDropdown((v) => !v)}
                   style={{
-                    background: 'none', border: 'none', fontSize: '20px',
+                    background: 'none', border: 'none',
                     cursor: 'pointer', padding: '4px', lineHeight: 1,
                     position: 'relative',
+                    color: unreadCount > 0 ? colors.primary : colors.subText,
+                    display: 'flex', alignItems: 'center',
+                    transition: 'color 0.15s',
                   }}
                   title="알림"
                 >
-                  🔔
+                  <BellIcon size={22} />
                   {/* 읽지 않은 알림 빨간 점 */}
                   {unreadCount > 0 && (
                     <span style={{
@@ -789,12 +793,13 @@ export default function FeedPage() {
         <div style={{ position: 'relative', marginBottom: '24px' }}>
           {/* 돋보기 아이콘 */}
           <span style={{
-            position: 'absolute', left: '16px', top: '50%',
+            position: 'absolute', left: '14px', top: '50%',
             transform: 'translateY(-50%)',
-            fontSize: '16px', color: colors.subText2,
+            color: colors.subText2,
             pointerEvents: 'none', lineHeight: 1,
+            display: 'flex', alignItems: 'center',
           }}>
-            🔍
+            <SearchIcon size={18} />
           </span>
           <input
             type="text"
@@ -1048,9 +1053,7 @@ export default function FeedPage() {
                         transition: 'color 0.15s',
                       }}
                     >
-                      <span style={{ fontSize: '16px', lineHeight: 1 }}>
-                        {isLiked ? '♥' : '♡'}
-                      </span>
+                      <HeartIcon size={20} filled={isLiked} />
                       <span style={{ fontSize: '14px' }}>{review.like_count}</span>
                     </button>
 
@@ -1065,7 +1068,7 @@ export default function FeedPage() {
                         transition: 'color 0.15s', fontSize: '14px',
                       }}
                     >
-                      <span style={{ fontSize: '16px', lineHeight: 1 }}>💬</span>
+                      <CommentIcon size={20} />
                       <span>{review.comment_count}</span>
                     </button>
 
@@ -1078,10 +1081,12 @@ export default function FeedPage() {
                           fontSize: '14px', cursor: 'pointer',
                           color: isWtr ? colors.primary : colors.subText,
                           fontWeight: isWtr ? 600 : 400,
+                          display: 'flex', alignItems: 'center', gap: '5px',
                           transition: 'color 0.15s',
                         }}
                       >
-                        읽고 싶다 {camp.total_want_to_read ?? 0}
+                        <BookmarkIcon size={20} filled={isWtr} />
+                        <span>{camp.total_want_to_read ?? 0}</span>
                       </button>
                     )}
                   </div>
